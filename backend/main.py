@@ -946,7 +946,7 @@ def get_products(user_id: int = Depends(verify_token)):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute(
-        "SELECT id, name, price_cents, description, image_url FROM products WHERE user_id=? ORDER BY id DESC",
+        "SELECT id, name, price_cents, description, image_url, category FROM products WHERE user_id=? ORDER BY category, name",
         (user_id,),
     )
     rows = c.fetchall()
@@ -963,6 +963,7 @@ def create_product(product: dict, user_id: int = Depends(verify_token)):
     price_cents = product.get("price_cents")
     description = product.get("description", "")
     image_url = product.get("image_url", "")
+    category = product.get("category", "")
 
     if not name or not price_cents:
         raise HTTPException(400, "name and price_cents required")
@@ -970,8 +971,8 @@ def create_product(product: dict, user_id: int = Depends(verify_token)):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute(
-        "INSERT INTO products (user_id, name, price_cents, description, image_url) VALUES (?, ?, ?, ?, ?)",
-        (user_id, name, price_cents, description, image_url),
+        "INSERT INTO products (user_id, name, price_cents, description, image_url, category) VALUES (?, ?, ?, ?, ?, ?)",
+        (user_id, name, price_cents, description, image_url, category),
     )
     product_id = c.lastrowid
     conn.commit()
@@ -983,6 +984,7 @@ def create_product(product: dict, user_id: int = Depends(verify_token)):
         "price_cents": price_cents,
         "description": description,
         "image_url": image_url,
+        "category": category,
     }
 
 
@@ -1017,6 +1019,9 @@ def update_product(product_id: int, product: dict, user_id: int = Depends(verify
     if image_url is not None:
         updates.append("image_url=?")
         params.append(image_url)
+    if category is not None:
+        updates.append("category=?")
+        params.append(category)
 
     params.extend([product_id, user_id])
     c.execute(f"UPDATE products SET {', '.join(updates)} WHERE id=? AND user_id=?", params)

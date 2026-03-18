@@ -65,17 +65,29 @@ const buttonSmallStyle = {
   border: 'none',
 };
 
+const PREDEFINED_CATEGORIES = [
+  'Getränke',
+  'Kaffee',
+  'Essen',
+  'Snacks',
+  'Süssigkeiten',
+  'Merchandise',
+  'Dienstleistungen',
+  'Sonstiges',
+];
+
 export default function Products({ onBack, setScreen, setCartOpen }) {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [customCategory, setCustomCategory] = useState('');
   const [form, setForm] = useState({
     name: '',
     description: '',
     price_cents: '',
-    category: 'Allgemein',
+    category: 'Getränke',
     image_url: '',
     active: true,
   });
@@ -207,11 +219,12 @@ export default function Products({ onBack, setScreen, setCartOpen }) {
   const resetForm = () => {
     setShowForm(false);
     setEditingId(null);
+    setCustomCategory('');
     setForm({
       name: '',
       description: '',
       price_cents: '',
-      category: 'Allgemein',
+      category: 'Getränke',
       image_url: '',
       active: true,
     });
@@ -280,6 +293,44 @@ export default function Products({ onBack, setScreen, setCartOpen }) {
               placeholder="2.50"
               required
             />
+
+            <label
+              style={{
+                display: 'block',
+                color: '#666666',
+                fontSize: '12px',
+                marginBottom: '8px',
+                marginTop: '4px',
+              }}
+            >
+              Kategorie
+            </label>
+            <select
+              value={form.category}
+              onChange={e => setForm({ ...form, category: e.target.value })}
+              style={{ ...inputStyle, cursor: 'pointer' }}
+            >
+              {PREDEFINED_CATEGORIES.map(cat => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+              <option value="__custom__">+ Eigene Kategorie...</option>
+            </select>
+
+            {form.category === '__custom__' && (
+              <input
+                type="text"
+                value={customCategory}
+                onChange={e => {
+                  setCustomCategory(e.target.value);
+                  setForm({ ...form, category: e.target.value });
+                }}
+                style={inputStyle}
+                placeholder="Kategoriename eingeben"
+                autoFocus
+              />
+            )}
 
             <label
               style={{
@@ -385,6 +436,19 @@ export default function Products({ onBack, setScreen, setCartOpen }) {
                   <h4 style={{ fontWeight: '600', color: '#ffffff', fontSize: '16px' }}>
                     {product.name}
                   </h4>
+                  {product.category && (
+                    <span
+                      style={{
+                        fontSize: '10px',
+                        padding: '2px 8px',
+                        backgroundColor: '#1f1f1f',
+                        borderRadius: '4px',
+                        color: '#f7931a',
+                      }}
+                    >
+                      {product.category}
+                    </span>
+                  )}
                   {!product.active && (
                     <span
                       style={{
