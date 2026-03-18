@@ -3,6 +3,7 @@ ZapOut Backend - MVP
 FastAPI based backend for ZapOut payments
 """
 
+import asyncio
 import hashlib
 import json
 import os
@@ -10,14 +11,15 @@ import secrets
 import sqlite3
 import subprocess
 import sys
+from collections import defaultdict
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Dict, List, Optional, Set
 
 import bcrypt
 
 # Import routers
 from app.routers import transactions
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, validator
 
@@ -74,6 +76,47 @@ def create_lnd_invoice(amount_sats: int, memo: str = "") -> dict:
         return {"error": str(e)}
 
 
+def check_lnd_invoice(payment_hash: str) -> dict:
+    """
+    Check if a Lightning invoice has been settled via LND on Helmut
+    Uses SSH to run lncli lookupinvoice on Helmut's LND container
+    """
+    if not payment_hash or payment_hash == "None":
+        return {"settled": False}
+
+    try:
+        cmd = [
+            "ssh",
+            "-o",
+            "StrictHostKeyChecking=no",
+            "helmut-tail",
+            "docker",
+            "exec",
+            "lightning_lnd_1",
+            "lncli",
+            "-n",
+            "mainnet",
+            "lookupinvoice",
+            payment_hash,
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+
+        try:
+            data = json.loads(result.stdout)
+            return {
+                "settled": data.get("settled", False),
+                "amt_paid_sat": data.get("amt_paid_sat", 0),
+                "state": data.get("state", "UNKNOWN"),
+            }
+        except json.JSONDecodeError:
+            return {"settled": False, "error": f"Failed to parse: {result.stdout}"}
+
+    except subprocess.TimeoutExpired:
+        return {"settled": False, "error": "SSH timeout"}
+    except Exception as e:
+        return {"settled": False, "error": str(e)}
+
+
 def get_lnd_status() -> dict:
     """
     Get LND node status via Helmut SSH
@@ -118,6 +161,60 @@ def get_lnd_status() -> dict:
         return {"connected": False, "error": "SSH timeout - Helmut not reachable"}
     except Exception as e:
         return {"connected": False, "error": str(e)}
+
+
+# =============================================================================
+# WebSocket Connection Manager (NUT-17 Real-time Updates)
+# =============================================================================
+class ConnectionManager:
+    """
+    Manages WebSocket connections for real-time payment updates.
+    Allows clients to subscribe to specific payment_id channels.
+    """
+
+    def __init__(self):
+        # payment_id -> list of websocket connections
+        self.active_connections: Dict[str, List[WebSocket]] = defaultdict(list)
+
+    async def connect(self, websocket: WebSocket, payment_id: str):
+        """Accept a new WebSocket connection and subscribe to payment_id channel"""
+        await websocket.accept()
+        if payment_id not in self.active_connections:
+            self.active_connections[payment_id] = []
+        self.active_connections[payment_id].append(websocket)
+        print(
+            f"[WS] Client connected to payment {payment_id}. Total: {len(self.active_connections[payment_id])}"
+        )
+
+    def disconnect(self, websocket: WebSocket, payment_id: str):
+        """Remove a WebSocket connection from payment_id channel"""
+        if payment_id in self.active_connections:
+            if websocket in self.active_connections[payment_id]:
+                self.active_connections[payment_id].remove(websocket)
+            if not self.active_connections[payment_id]:
+                del self.active_connections[payment_id]
+        print(f"[WS] Client disconnected from payment {payment_id}")
+
+    async def broadcast(self, payment_id: str, message: dict):
+        """Broadcast a message to all clients subscribed to payment_id"""
+        if payment_id in self.active_connections:
+            dead_connections = []
+            for connection in self.active_connections[payment_id]:
+                try:
+                    await connection.send_json(message)
+                except Exception:
+                    dead_connections.append(connection)
+            # Clean up dead connections
+            for dead in dead_connections:
+                self.disconnect(dead, payment_id)
+
+    def get_subscriber_count(self, payment_id: str) -> int:
+        """Get number of active subscribers for a payment"""
+        return len(self.active_connections.get(payment_id, []))
+
+
+# Global connection manager instance
+manager = ConnectionManager()
 
 
 app = FastAPI(title="ZapOut API", version="0.1.0")
@@ -430,6 +527,79 @@ def get_payments(user_id: int = Depends(verify_token)):
     ]
 
 
+@app.get("/payments/{payment_id}")
+def get_payment(payment_id: int, user_id: int = Depends(verify_token)):
+    """Get a specific payment by ID with real-time Lightning status check"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+
+    # Get payment from orders table
+    c.execute(
+        """SELECT id, user_id, total_cents, status, lightning_invoice, payment_hash, created_at
+           FROM orders WHERE id = ? AND user_id = ?""",
+        (payment_id, user_id),
+    )
+    order = c.fetchone()
+
+    # Also check payments table
+    c.execute(
+        """SELECT id, user_id, amount_cents, status, invoice_id, created_at
+           FROM payments WHERE id = ? AND user_id = ?""",
+        (payment_id, user_id),
+    )
+    payment = c.fetchone()
+    conn.close()
+
+    if order:
+        status = order[3]
+        lightning_invoice = order[4]
+        payment_hash = order[5]
+
+        # If pending, check Lightning network for actual payment status
+        if status == "pending" and lightning_invoice:
+            lnd_status = get_lnd_status()
+            if lnd_status.get("connected"):
+                # Look up the invoice on Lightning network
+                try:
+                    result = check_lnd_invoice(payment_hash)
+                    if result and result.get("settled"):
+                        status = "paid"
+                        # Update database
+                        conn2 = sqlite3.connect(DB_PATH)
+                        c2 = conn2.cursor()
+                        c2.execute(
+                            "UPDATE orders SET status = ? WHERE id = ?", (status, payment_id)
+                        )
+                        conn2.commit()
+                        conn2.close()
+                except Exception as e:
+                    print(f"[WS] LND lookup error: {e}")
+
+        return {
+            "id": order[0],
+            "user_id": order[1],
+            "amount_cents": order[2],
+            "status": status,
+            "invoice": lightning_invoice,
+            "payment_hash": payment_hash,
+            "created_at": order[6],
+            "websocket_url": f"ws://localhost:8000/ws/payments/{payment_id}",
+        }
+
+    if payment:
+        return {
+            "id": payment[0],
+            "user_id": payment[1],
+            "amount_cents": payment[2],
+            "status": payment[3],
+            "invoice_id": payment[4],
+            "created_at": payment[5],
+            "websocket_url": f"ws://localhost:8000/ws/payments/{payment_id}",
+        }
+
+    raise HTTPException(404, "Payment not found")
+
+
 @app.post("/payments", response_model=PaymentResponse)
 def create_payment(payment: dict, user_id: int = Depends(verify_token)):
     """Create a Lightning payment request"""
@@ -482,6 +652,136 @@ def create_payment(payment: dict, user_id: int = Depends(verify_token)):
         "bolt11": bolt11,
         "created_at": datetime.utcnow().isoformat(),
     }
+
+
+# =============================================================================
+# WebSocket Endpoint (NUT-17 Real-time Payment Updates)
+# =============================================================================
+@app.websocket("/ws/payments/{payment_id}")
+async def websocket_payment(websocket: WebSocket, payment_id: int):
+    """
+    WebSocket endpoint for real-time payment status updates.
+    Clients connect to receive instant notifications when a payment is settled.
+
+    Usage:
+        ws://localhost:8000/ws/payments/{payment_id}
+
+    Messages sent to client:
+        - {"type": "status_update", "status": "paid", "timestamp": "..."}
+        - {"type": "error", "message": "..."}
+        - {"type": "ping"} (heartbeat)
+    """
+    await manager.connect(websocket, str(payment_id))
+
+    # Send initial connection confirmation
+    await websocket.send_json(
+        {
+            "type": "connected",
+            "payment_id": payment_id,
+            "message": f"Subscribed to payment {payment_id} updates",
+        }
+    )
+
+    # Start background task to poll Lightning network and broadcast updates
+    asyncio.create_task(poll_payment_status(str(payment_id)))
+
+    try:
+        while True:
+            # Keep connection alive and handle any client messages
+            data = await websocket.receive_text()
+
+            # Handle ping/pong for keepalive
+            if data == "ping":
+                await websocket.send_text("pong")
+
+    except WebSocketDisconnect:
+        manager.disconnect(websocket, str(payment_id))
+    except Exception as e:
+        print(f"[WS] Error with payment {payment_id}: {e}")
+        manager.disconnect(websocket, str(payment_id))
+
+
+async def poll_payment_status(payment_id: str):
+    """
+    Background task that polls Lightning network for payment status
+    and broadcasts updates to connected WebSocket clients.
+    """
+    MAX_POLLS = 24  # Poll for ~2 minutes (5 sec intervals)
+
+    for i in range(MAX_POLLS):
+        await asyncio.sleep(5)  # Poll every 5 seconds
+
+        try:
+            # Get payment from database
+            conn = sqlite3.connect(DB_PATH)
+            c = conn.cursor()
+            c.execute(
+                """SELECT status, payment_hash, lightning_invoice
+                   FROM orders WHERE id = ?""",
+                (payment_id,),
+            )
+            row = c.fetchone()
+            conn.close()
+
+            if not row:
+                await manager.broadcast(
+                    payment_id, {"type": "error", "message": "Payment not found"}
+                )
+                break
+
+            status, payment_hash, lightning_invoice = row
+
+            # If pending, check Lightning network
+            if status == "pending" and payment_hash and payment_hash != "None":
+                lnd_status = get_lnd_status()
+                if lnd_status.get("connected"):
+                    result = check_lnd_invoice(payment_hash)
+                    if result.get("settled"):
+                        # Update database
+                        conn2 = sqlite3.connect(DB_PATH)
+                        c2 = conn2.cursor()
+                        c2.execute(
+                            "UPDATE orders SET status = ? WHERE id = ?", ("paid", payment_id)
+                        )
+                        conn2.commit()
+                        conn2.close()
+
+                        # Broadcast paid status
+                        await manager.broadcast(
+                            payment_id,
+                            {
+                                "type": "status_update",
+                                "status": "paid",
+                                "settled_at": datetime.utcnow().isoformat(),
+                                "amt_paid_sat": result.get("amt_paid_sat", 0),
+                            },
+                        )
+                        print(f"[WS] Payment {payment_id} PAID - broadcasting update")
+                        break
+
+            # Broadcast current status
+            await manager.broadcast(
+                payment_id,
+                {"type": "status_check", "status": status, "poll": i + 1, "max_polls": MAX_POLLS},
+            )
+
+        except Exception as e:
+            print(f"[WS] Polling error for payment {payment_id}: {e}")
+            await manager.broadcast(payment_id, {"type": "error", "message": str(e)})
+
+    # After max polls, send timeout if still pending
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT status FROM orders WHERE id = ?", (payment_id,))
+    row = c.fetchone()
+    conn.close()
+
+    if row and row[0] == "pending":
+        await manager.broadcast(
+            payment_id,
+            {"type": "timeout", "status": "expired", "message": "Payment window expired"},
+        )
+        print(f"[WS] Payment {payment_id} expired - broadcasting timeout")
 
 
 # Cart API

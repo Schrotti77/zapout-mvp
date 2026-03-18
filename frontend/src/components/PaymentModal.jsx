@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
+import { useWebSocket } from '../hooks/useWebSocket';
 
 export default function PaymentModal({ isOpen, onClose, orderData, onStatusChange }) {
   const canvasRef = useRef(null);
@@ -7,6 +8,34 @@ export default function PaymentModal({ isOpen, onClose, orderData, onStatusChang
   const [paymentStatus, setPaymentStatus] = useState('pending'); // pending, paid, expired
   const [liveSats, setLiveSats] = useState(null);
   const [btcPrice, setBtcPrice] = useState(null);
+  const [wsConnected, setWsConnected] = useState(false);
+
+  // WebSocket URL for real-time updates (NUT-17)
+  const wsUrl = orderData?.payment_id
+    ? `ws://localhost:8000/ws/payments/${orderData.payment_id}`
+    : null;
+
+  // WebSocket connection for payment status updates
+  const { status: wsStatus, isConnected } = useWebSocket(wsUrl, {
+    enabled: isOpen && paymentStatus === 'pending' && !!orderData?.payment_id,
+    onMessage: data => {
+      console.log('[WS] Payment update:', data);
+
+      if (data.type === 'status_update') {
+        if (data.status === 'paid') {
+          setPaymentStatus('paid');
+          onStatusChange?.('paid');
+        }
+      } else if (data.type === 'timeout' || data.type === 'expired') {
+        setPaymentStatus('expired');
+      } else if (data.type === 'connected') {
+        setWsConnected(true);
+        console.log('[WS] Subscribed to payment updates');
+      }
+    },
+    onConnect: () => setWsConnected(true),
+    onDisconnect: () => setWsConnected(false),
+  });
 
   // Generate QR Code
   useEffect(() => {
@@ -63,30 +92,14 @@ export default function PaymentModal({ isOpen, onClose, orderData, onStatusChang
     return () => clearInterval(interval);
   }, [isOpen]);
 
-  // Poll for payment status
+  // Reset state when modal opens with new order
   useEffect(() => {
-    if (!isOpen || paymentStatus !== 'pending' || !orderData?.payment_id) return;
-
-    const pollInterval = setInterval(async () => {
-      try {
-        const token = localStorage.getItem('zapout_token');
-        const res = await fetch(`http://localhost:8000/payments/${orderData.payment_id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.status === 'paid' || data.status === 'completed') {
-            setPaymentStatus('paid');
-            onStatusChange && onStatusChange('paid');
-          }
-        }
-      } catch (err) {
-        console.error('Payment check error:', err);
-      }
-    }, 5000); // Poll every 5 seconds
-
-    return () => clearInterval(pollInterval);
-  }, [isOpen, paymentStatus, orderData]);
+    if (isOpen) {
+      setPaymentStatus('pending');
+      setTimeLeft(600);
+      setWsConnected(false);
+    }
+  }, [isOpen, orderData?.payment_id]);
 
   const formatTime = seconds => {
     const mins = Math.floor(seconds / 60);
@@ -222,7 +235,13 @@ export default function PaymentModal({ isOpen, onClose, orderData, onStatusChang
               📋 Invoice kopieren
             </button>
 
-            <div style={styles.status}>⏳ Warte auf Zahlung...</div>
+            <div style={styles.status}>
+              {wsConnected ? (
+                <span>🔔 Echtzeit-Updates aktiv</span>
+              ) : (
+                <span>⏳ Warte auf Zahlung...</span>
+              )}
+            </div>
           </>
         )}
 
