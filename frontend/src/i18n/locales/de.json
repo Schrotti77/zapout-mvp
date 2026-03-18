@@ -152,6 +152,9 @@
     "clearCart": "Warenkorb leeren",
     "noProducts": "Keine Produkte vorhanden",
     "addProducts": "Produkte hinzufügen",
-    "manuallyCompleted": "Manuell als bezahlt markieren"
+    "manuallyCompleted": "Manuell als bezahlt markieren",
+    "payWithCashu": "Bezahle mit Cashu Token",
+    "tokenPlaceholder": "Cashu Token hier einfügen...",
+    "completeSale": "Verkauf abschließen"
   }
 }

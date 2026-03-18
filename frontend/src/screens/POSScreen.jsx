@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { QRCodeSVG } from 'qrcode.react';
 
 const API_URL = 'http://localhost:8000';
 
@@ -294,7 +295,148 @@ export default function POSScreen({ onBack }) {
     closePayment();
   };
 
-  // Payment Modal
+  const [tokenInput, setTokenInput] = useState('');
+  const [tokenVerified, setTokenVerified] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+
+  // Verify Cashu token
+  const verifyCashuToken = async () => {
+    if (!tokenInput.trim()) return;
+
+    setVerifying(true);
+    const token = localStorage.getItem('zapout_token');
+
+    try {
+      const response = await fetch(`${API_URL}/cashu/verify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          token: tokenInput.trim(),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.valid) {
+        setTokenVerified(true);
+      } else {
+        alert(data.message || 'Token ist ungültig');
+      }
+    } catch (error) {
+      console.error('Token verify error:', error);
+      alert('Token-Verifizierung fehlgeschlagen');
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  // Cashu Payment View
+  if (paymentMethod === 'cashu') {
+    return (
+      <div style={containerStyle}>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minHeight: '80vh',
+            textAlign: 'center',
+          }}
+        >
+          <div style={{ fontSize: '64px', marginBottom: '16px' }}>💰</div>
+          <div style={{ fontSize: '24px', fontWeight: '700', marginBottom: '8px' }}>
+            {formatPrice(totalCents)}
+          </div>
+          <div style={{ fontSize: '14px', color: '#666666', marginBottom: '24px' }}>
+            {t('pos.payWithCashu') || 'Bezahle mit Cashu Token'}
+          </div>
+
+          {tokenVerified ? (
+            <div style={{ color: '#22c55e', fontSize: '16px', marginBottom: '24px' }}>
+              ✅ Token akzeptiert!
+            </div>
+          ) : (
+            <div style={{ width: '100%', maxWidth: '350px', padding: '0 16px' }}>
+              <textarea
+                value={tokenInput}
+                onChange={e => setTokenInput(e.target.value)}
+                placeholder={t('pos.tokenPlaceholder') || 'Cashu Token hier einfügen...'}
+                style={{
+                  width: '100%',
+                  height: '120px',
+                  padding: '12px',
+                  borderRadius: '12px',
+                  border: '1px solid #333',
+                  backgroundColor: '#141414',
+                  color: '#ffffff',
+                  fontSize: '12px',
+                  fontFamily: 'monospace',
+                  resize: 'none',
+                  marginBottom: '16px',
+                }}
+              />
+              <button
+                onClick={verifyCashuToken}
+                disabled={verifying || !tokenInput.trim()}
+                style={{
+                  width: '100%',
+                  padding: '16px',
+                  borderRadius: '12px',
+                  border: 'none',
+                  backgroundColor: verifying || !tokenInput.trim() ? '#333' : '#f7931a',
+                  color: '#000000',
+                  fontSize: '16px',
+                  fontWeight: '600',
+                  cursor: verifying || !tokenInput.trim() ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {verifying ? '⏳ Prüfe Token...' : '✓ Token einlösen'}
+              </button>
+            </div>
+          )}
+
+          <div style={{ marginTop: '24px' }}>
+            <button
+              onClick={completeSale}
+              disabled={!tokenVerified}
+              style={{
+                padding: '12px 24px',
+                backgroundColor: tokenVerified ? '#22c55e' : '#333',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '12px',
+                fontSize: '14px',
+                cursor: tokenVerified ? 'pointer' : 'not-allowed',
+              }}
+            >
+              {t('pos.completeSale') || 'Verkauf abschließen'}
+            </button>
+          </div>
+
+          <button
+            onClick={closePayment}
+            style={{
+              marginTop: '12px',
+              padding: '12px 24px',
+              backgroundColor: 'transparent',
+              color: '#666666',
+              border: 'none',
+              fontSize: '14px',
+              cursor: 'pointer',
+            }}
+          >
+            {t('common.cancel') || 'Abbrechen'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Lightning Payment Modal
   if (paymentRequest) {
     return (
       <div style={containerStyle}>
@@ -316,7 +458,7 @@ export default function POSScreen({ onBack }) {
             ₿ {totalSats.toLocaleString()} sats
           </div>
 
-          {paymentRequest.qr_code && (
+          {paymentRequest.bolt11 ? (
             <div
               style={{
                 backgroundColor: '#ffffff',
@@ -325,10 +467,21 @@ export default function POSScreen({ onBack }) {
                 marginBottom: '24px',
               }}
             >
-              <img
-                src={paymentRequest.qr_code}
-                alt="Payment QR"
-                style={{ width: '200px', height: '200px' }}
+              <QRCodeSVG value={paymentRequest.bolt11} size={200} level={'M'} />
+            </div>
+          ) : (
+            <div
+              style={{
+                backgroundColor: '#ffffff',
+                padding: '16px',
+                borderRadius: '16px',
+                marginBottom: '24px',
+              }}
+            >
+              <QRCodeSVG
+                value={paymentRequest.token || JSON.stringify(paymentRequest)}
+                size={200}
+                level={'M'}
               />
             </div>
           )}
