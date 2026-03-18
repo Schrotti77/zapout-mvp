@@ -5,6 +5,7 @@ import Products from './screens/Products';
 import SettingsScreen from './screens/SettingsScreen';
 import CashuScreen from './screens/CashuScreen';
 import DashboardScreen from './screens/DashboardScreen';
+import AuthScreen from './screens/AuthScreen';
 import CartDrawer from './components/CartDrawer';
 import Layout, { ScreenCard, PageTitle, SectionTitle } from './components/ui/Layout';
 import { proofStorage, txHistory } from './services/cashu';
@@ -13,8 +14,6 @@ const API_URL = 'http://localhost:8000';
 
 function App() {
   const [screen, setScreen] = useState('register');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [token, setToken] = useState(localStorage.getItem('zapout_token'));
   const [payments, setPayments] = useState([]);
   const [cashuBal, setCashuBal] = useState(0);
@@ -44,58 +43,6 @@ function App() {
     }
   };
 
-  const handleRegister = async () => {
-    const res = await fetch(API_URL + '/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
-    const data = await res.json();
-    if (data.token) {
-      localStorage.setItem('zapout_token', data.token);
-      setToken(data.token);
-    }
-  };
-
-  const handleLogin = async () => {
-    const res = await fetch(API_URL + '/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
-    const data = await res.json();
-    if (data.token) {
-      localStorage.setItem('zapout_token', data.token);
-      setToken(data.token);
-    }
-  };
-
-  const createPayment = async () => {
-    const cents = Math.round(parseFloat(amount) * 100);
-
-    // Get current BTC price for sats conversion
-    let btcPrice = 64416; // fallback
-    try {
-      const priceRes = await fetch(
-        'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=eur'
-      );
-      const priceData = await priceRes.json();
-      btcPrice = priceData?.bitcoin?.eur || 64416;
-    } catch (e) {
-      console.log('Price fetch failed, using fallback');
-    }
-
-    // Calculate sats: (cents / 100) EUR = sats
-    const sats = Math.round((cents / 100 / btcPrice) * 100000000);
-
-    const res = await fetch(API_URL + '/payments', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-      body: JSON.stringify({ amount_cents: cents, amount_sats: sats, method: 'lightning' }),
-    });
-    const data = await res.json();
-    setInvoice({ ...data, amount_sats: sats, btc_price: btcPrice });
-  };
   const loadCashuBalance = async () => {
     try {
       // Try backend first
@@ -126,150 +73,16 @@ function App() {
     setScreen('register');
   };
 
-  // Common button style
-  const btnPrimary = {
-    background: 'linear-gradient(135deg, #f7931a 0%, #e5820a 100%)',
-    color: '#000000',
-    border: 'none',
-    padding: '14px 24px',
-    borderRadius: '12px',
-    fontSize: '15px',
-    fontWeight: '600',
-    cursor: 'pointer',
-    width: '100%',
-    boxShadow: '0 4px 12px rgba(247, 147, 26, 0.3)',
-  };
-
-  const btnSecondary = {
-    backgroundColor: '#1f1f1f',
-    color: '#ffffff',
-    border: '1px solid #333333',
-    padding: '14px 24px',
-    borderRadius: '12px',
-    fontSize: '15px',
-    fontWeight: '600',
-    cursor: 'pointer',
-    width: '100%',
-  };
-
-  const inputStyle = {
-    width: '100%',
-    padding: '14px 16px',
-    backgroundColor: '#1a1a1a',
-    border: '1px solid #2a2a2a',
-    borderRadius: '12px',
-    color: '#ffffff',
-    fontSize: '16px',
-    outline: 'none',
-  };
-
-  // Register
-  if (screen === 'register') {
+  // Auth Screens (Register/Login)
+  if (screen === 'register' || screen === 'login') {
     return (
-      <div className="min-h-screen" style={{ backgroundColor: '#0a0a0a', padding: '20px' }}>
-        <header
-          style={{
-            backgroundColor: '#0d0d0d',
-            borderBottom: '1px solid #1a1a1a',
-            padding: '20px',
-            textAlign: 'center',
-            margin: '-20px -20px 20px -20px',
-          }}
-        >
-          <h1
-            style={{
-              margin: 0,
-              fontSize: '28px',
-              fontWeight: 'bold',
-              background: 'linear-gradient(90deg, #f7931a, #ffa333)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-            }}
-          >
-            ZapOut
-          </h1>
-          <p style={{ color: '#666666', fontSize: '14px', marginTop: '4px' }}>Bitcoin Payments</p>
-        </header>
-        <main style={{ maxWidth: '400px', margin: '0 auto' }}>
-          <h2 style={{ color: '#ffffff', marginBottom: '20px' }}>Registrieren</h2>
-          <input
-            style={inputStyle}
-            placeholder="E-Mail"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-          />
-          <input
-            style={{ ...inputStyle, marginTop: '12px' }}
-            type="password"
-            placeholder="Passwort"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-          />
-          <button style={{ ...btnPrimary, marginTop: '20px' }} onClick={handleRegister}>
-            Konto erstellen
-          </button>
-          <p style={{ textAlign: 'center', marginTop: '16px', color: '#666666' }}>
-            Oder{' '}
-            <span
-              style={{ color: '#f7931a', cursor: 'pointer' }}
-              onClick={() => setScreen('login')}
-            >
-              Login
-            </span>
-          </p>
-        </main>
-        <CartDrawer isOpen={cartOpen} onClose={() => setCartOpen(false)} setScreen={setScreen} />
-      </div>
-    );
-  }
-
-  // Login
-  if (screen === 'login') {
-    return (
-      <div className="min-h-screen" style={{ backgroundColor: '#0a0a0a', padding: '20px' }}>
-        <header
-          style={{
-            backgroundColor: '#0d0d0d',
-            borderBottom: '1px solid #1a1a1a',
-            padding: '20px',
-            textAlign: 'center',
-            margin: '-20px -20px 20px -20px',
-          }}
-        >
-          <h1
-            style={{
-              margin: 0,
-              fontSize: '28px',
-              fontWeight: 'bold',
-              background: 'linear-gradient(90deg, #f7931a, #ffa333)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-            }}
-          >
-            ZapOut
-          </h1>
-        </header>
-        <main style={{ maxWidth: '400px', margin: '0 auto' }}>
-          <h2 style={{ color: '#ffffff', marginBottom: '20px' }}>Login</h2>
-          <input
-            style={inputStyle}
-            placeholder="E-Mail"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-          />
-          <input
-            style={{ ...inputStyle, marginTop: '12px' }}
-            type="password"
-            placeholder="Passwort"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-          />
-          <button style={{ ...btnPrimary, marginTop: '20px' }} onClick={handleLogin}>
-            Login
-          </button>
-        </main>
-        <CartDrawer isOpen={cartOpen} onClose={() => setCartOpen(false)} setScreen={setScreen} />
-      </div>
+      <AuthScreen
+        mode={screen}
+        setScreen={setScreen}
+        onAuthSuccess={newToken => {
+          setToken(newToken);
+        }}
+      />
     );
   }
 
