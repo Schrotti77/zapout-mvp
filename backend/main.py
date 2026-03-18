@@ -946,13 +946,21 @@ def get_products(user_id: int = Depends(verify_token)):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute(
-        "SELECT id, name, price_cents, description, image_url, category FROM products WHERE user_id=? ORDER BY category, name",
+        "SELECT id, name, price_cents, description, image_url, category, active FROM products WHERE user_id=? ORDER BY category, name",
         (user_id,),
     )
     rows = c.fetchall()
     conn.close()
     return [
-        {"id": r[0], "name": r[1], "price_cents": r[2], "description": r[3], "image_url": r[4]}
+        {
+            "id": r[0],
+            "name": r[1],
+            "price_cents": r[2],
+            "description": r[3],
+            "image_url": r[4],
+            "category": r[5],
+            "active": r[6],
+        }
         for r in rows
     ]
 
