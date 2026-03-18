@@ -4,9 +4,9 @@ import SwapScreen from './screens/SwapScreen';
 import Products from './screens/Products';
 import SettingsScreen from './screens/SettingsScreen';
 import CashuScreen from './screens/CashuScreen';
+import DashboardScreen from './screens/DashboardScreen';
 import CartDrawer from './components/CartDrawer';
-import PaymentModal from './components/PaymentModal';
-import Layout, { ScreenCard, PageTitle, SectionTitle, Badge } from './components/ui/Layout';
+import Layout, { ScreenCard, PageTitle, SectionTitle } from './components/ui/Layout';
 import { proofStorage, txHistory } from './services/cashu';
 
 const API_URL = 'http://localhost:8000';
@@ -17,8 +17,6 @@ function App() {
   const [password, setPassword] = useState('');
   const [token, setToken] = useState(localStorage.getItem('zapout_token'));
   const [payments, setPayments] = useState([]);
-  const [amount, setAmount] = useState('');
-  const [invoice, setInvoice] = useState(null);
   const [cashuBal, setCashuBal] = useState(0);
   const [selectedMint, setSelectedMint] = useState('https://testnut.cashu.space');
   const [cashuTokens, setCashuTokens] = useState([]);
@@ -128,14 +126,6 @@ function App() {
     setScreen('register');
   };
 
-  const today =
-    (payments || [])
-      .filter(
-        p =>
-          p && p.created_at && new Date(p.created_at).toDateString() === new Date().toDateString()
-      )
-      .reduce((sum, p) => sum + (p.amount_cents || 0), 0) / 100;
-
   // Common button style
   const btnPrimary = {
     background: 'linear-gradient(135deg, #f7931a 0%, #e5820a 100%)',
@@ -171,17 +161,6 @@ function App() {
     color: '#ffffff',
     fontSize: '16px',
     outline: 'none',
-  };
-
-  const quickAmountStyle = {
-    backgroundColor: '#1f1f1f',
-    color: '#ffffff',
-    border: '1px solid #2a2a2a',
-    padding: '12px',
-    borderRadius: '10px',
-    fontSize: '14px',
-    fontWeight: '500',
-    cursor: 'pointer',
   };
 
   // Register
@@ -295,154 +274,15 @@ function App() {
   }
 
   // Dashboard
+  // Dashboard Screen
   if (screen === 'dashboard') {
     return (
-      <Layout
-        title="ZapOut"
-        screen={screen}
+      <DashboardScreen
+        token={token}
+        payments={payments}
+        loadPayments={loadPayments}
         setScreen={setScreen}
-        cartOpen={cartOpen}
-        setCartOpen={setCartOpen}
-      >
-        {invoice ? (
-          <>
-            {/* Show Payment Modal when invoice exists */}
-            <PaymentModal
-              isOpen={true}
-              onClose={() => setInvoice(null)}
-              orderData={{
-                orderId: invoice.id,
-                amount: invoice.amount_cents / 100,
-                amount_cents: invoice.amount_cents,
-                amount_sats:
-                  invoice.amount_sats ||
-                  Math.round((invoice.amount_cents / invoice.btc_price) * 100000000),
-                currency: 'EUR',
-                invoice: {
-                  bolt11: invoice.bolt11,
-                  payment_request: invoice.bolt11,
-                },
-                payment_id: invoice.id,
-              }}
-              onStatusChange={status => {
-                if (status === 'paid') {
-                  loadPayments();
-                  setInvoice(null);
-                }
-              }}
-            />
-            <button style={btnPrimary} onClick={() => setInvoice(null)}>
-              Neue Zahlung
-            </button>
-          </>
-        ) : (
-          <>
-            <div
-              style={{
-                backgroundColor: '#141414',
-                border: '1px solid #222222',
-                borderRadius: '16px',
-                padding: '20px',
-                marginBottom: '20px',
-              }}
-            >
-              <p
-                style={{
-                  color: '#666666',
-                  fontSize: '12px',
-                  textTransform: 'uppercase',
-                  letterSpacing: '1px',
-                }}
-              >
-                Heute
-              </p>
-              <p
-                style={{ color: '#ffffff', fontSize: '36px', fontWeight: 'bold', marginTop: '4px' }}
-              >
-                {today.toFixed(2)} €
-              </p>
-              <p style={{ color: '#666666', fontSize: '14px' }}>
-                {(payments || []).length} Zahlungen
-              </p>
-            </div>
-
-            <h3
-              style={{
-                fontSize: '14px',
-                fontWeight: '600',
-                color: '#ffffff',
-                marginBottom: '12px',
-              }}
-            >
-              Schnell-Betrag
-            </h3>
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(3, 1fr)',
-                gap: '8px',
-                marginBottom: '16px',
-              }}
-            >
-              {['10', '20', '50'].map(amt => (
-                <button key={amt} style={quickAmountStyle} onClick={() => setAmount(amt)}>
-                  {amt} €
-                </button>
-              ))}
-            </div>
-            <input
-              style={{
-                ...inputStyle,
-                textAlign: 'center',
-                fontSize: '24px',
-                fontWeight: 'bold',
-                marginBottom: '16px',
-              }}
-              placeholder="0.00 €"
-              value={amount}
-              onChange={e => setAmount(e.target.value)}
-            />
-            <button style={btnPrimary} onClick={createPayment} disabled={!amount}>
-              ZAHLUNG ANFORDERN
-            </button>
-          </>
-        )}
-
-        <h3
-          style={{
-            fontSize: '14px',
-            fontWeight: '600',
-            color: '#ffffff',
-            marginTop: '24px',
-            marginBottom: '12px',
-          }}
-        >
-          Letzte Zahlungen
-        </h3>
-        {(payments || []).slice(0, 5).map(p => (
-          <div
-            key={p.id}
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              padding: '12px 0',
-              borderBottom: '1px solid #222222',
-            }}
-          >
-            <span style={{ color: '#666666' }}>
-              {new Date(p.created_at).toLocaleTimeString('de-DE', {
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
-            </span>
-            <span style={{ fontWeight: '600', color: '#ffffff' }}>
-              {(p.amount_cents / 100).toFixed(2)} €
-            </span>
-            <Badge variant={p.status === 'completed' ? 'success' : 'default'}>{p.status}</Badge>
-          </div>
-        ))}
-      </Layout>
+      />
     );
   }
 
