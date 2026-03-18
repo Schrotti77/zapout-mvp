@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Layout from '../components/ui/Layout';
 import { proofStorage, txHistory } from '../services/cashu';
+import { QRCodeSVG } from 'qrcode.react';
+import { Html5Qrcode } from 'html5-qrcode';
 
 const API_URL = 'http://localhost:8000';
 
@@ -29,6 +31,11 @@ function CashuScreen({
   const [generatedToken, setGeneratedToken] = useState(null);
   const [tokenInput, setTokenInput] = useState('');
   const [verifyResult, setVerifyResult] = useState(null);
+  const [showInvoiceQR, setShowInvoiceQR] = useState(false);
+  const [showTokenQR, setShowTokenQR] = useState(false);
+  const [scanningQR, setScanningQR] = useState(false);
+  const scannerRef = useRef(null);
+  const html5QrCodeRef = useRef(null);
 
   const mints = [
     { name: 'Testnut', url: 'https://testnut.cashu.space', fees: '0.5%' },
@@ -39,6 +46,7 @@ function CashuScreen({
   // Cashu: Create mint quote
   const createCashuQuote = async sats => {
     try {
+      setShowInvoiceQR(false);
       const res = await fetch(
         API_URL +
           '/cashu/mint-quote?amount_cents=' +
@@ -105,6 +113,65 @@ function CashuScreen({
     } catch (e) {
       setVerifyResult({ error: e.message });
     }
+  };
+
+  // QR Scanner functions
+  const startScanner = async () => {
+    setScanningQR(true);
+    try {
+      const html5QrCode = new Html5Qrcode('qr-reader');
+      html5QrCodeRef.current = html5QrCode;
+
+      await html5QrCode.start(
+        { facingMode: 'environment' },
+        {
+          fps: 10,
+          qrbox: { width: 250, height: 250 },
+        },
+        decodedText => {
+          // Got QR code result
+          setTokenInput(decodedText);
+          stopScanner();
+          setVerifyResult(null);
+        },
+        () => {
+          // QR code not detected yet - ignore
+        }
+      );
+    } catch (err) {
+      console.error('Error starting scanner:', err);
+      alert('Kamera-Zugriff verweigert oder nicht verfügbar');
+      setScanningQR(false);
+    }
+  };
+
+  const stopScanner = () => {
+    if (html5QrCodeRef.current) {
+      html5QrCodeRef.current.stop().catch(err => console.error('Error stopping scanner:', err));
+      html5QrCodeRef.current = null;
+    }
+    setScanningQR(false);
+  };
+
+  // Cleanup scanner on unmount
+  useEffect(() => {
+    return () => {
+      if (html5QrCodeRef.current) {
+        html5QrCodeRef.current.stop().catch(() => {});
+      }
+    };
+  }, []);
+
+  // Get the invoice string from quote
+  const getInvoiceString = () => {
+    if (!cashuQuote) return '';
+    return cashuQuote.payment_request || cashuQuote.request || '';
+  };
+
+  // Get sats amount from quote
+  const getQuoteSats = () => {
+    if (!cashuQuote) return 0;
+    return cashuQuote.amount || cashuQuote.requestedAmount || 0;
   };
 
   return (
@@ -223,8 +290,54 @@ function CashuScreen({
           }}
         >
           <p style={{ color: '#666666', fontSize: '12px' }}>
-            Lightning Invoice ({cashuQuote.amount || cashuQuote.requestedAmount} sats)
+            Lightning Invoice ({getQuoteSats()} sats)
           </p>
+
+          {/* QR Code Display */}
+          {getInvoiceString() && (
+            <div style={{ marginTop: '12px', textAlign: 'center' }}>
+              {!showInvoiceQR ? (
+                <button
+                  onClick={() => setShowInvoiceQR(true)}
+                  style={{
+                    ...quickAmountStyle,
+                    backgroundColor: '#1a1a1a',
+                    border: '1px solid #22c55e',
+                    color: '#22c55e',
+                  }}
+                >
+                  📷 QR-Code anzeigen
+                </button>
+              ) : (
+                <div>
+                  <div
+                    style={{
+                      backgroundColor: '#ffffff',
+                      padding: '16px',
+                      borderRadius: '12px',
+                      display: 'inline-block',
+                      marginBottom: '12px',
+                    }}
+                  >
+                    <QRCodeSVG value={getInvoiceString()} size={200} level={'M'} />
+                  </div>
+                  <button
+                    onClick={() => setShowInvoiceQR(false)}
+                    style={{
+                      ...quickAmountStyle,
+                      backgroundColor: '#333',
+                      color: '#fff',
+                      fontSize: '12px',
+                    }}
+                  >
+                    Schließen
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Invoice string */}
           <p
             style={{
               backgroundColor: '#0a0a0a',
@@ -233,13 +346,13 @@ function CashuScreen({
               wordBreak: 'break-all',
               fontSize: '10px',
               fontFamily: 'monospace',
-              marginTop: '8px',
+              marginTop: '12px',
               color: '#22c55e',
             }}
           >
-            {cashuQuote.error || cashuQuote.payment_request || cashuQuote.request || 'Lädt...'}
+            {cashuQuote.error || getInvoiceString() || 'Lädt...'}
           </p>
-          {cashuQuote.payment_request && (
+          {getInvoiceString() && (
             <p style={{ fontSize: '12px', color: '#22c55e', marginTop: '12px' }}>
               ✓ Invoice bereit - bezahle um Cashu zu erhalten
             </p>
@@ -252,7 +365,7 @@ function CashuScreen({
         </div>
       )}
 
-      {/* Generated Token Display */}
+      {/* Generated Token Display with QR */}
       {generatedToken && (
         <div
           style={{
@@ -290,6 +403,39 @@ function CashuScreen({
         <p style={{ color: '#666666', fontSize: '12px', marginBottom: '8px' }}>
           TOKEN EINLÖSEN / PRÜFEN
         </p>
+
+        {/* QR Scanner */}
+        {scanningQR ? (
+          <div style={{ marginBottom: '16px' }}>
+            <div id="qr-reader" style={{ width: '100%' }} />
+            <button
+              onClick={stopScanner}
+              style={{
+                ...quickAmountStyle,
+                marginTop: '12px',
+                backgroundColor: '#ef4444',
+                color: '#fff',
+              }}
+            >
+              Scanner schließen
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={startScanner}
+            style={{
+              ...quickAmountStyle,
+              marginBottom: '16px',
+              backgroundColor: '#1a1a1a',
+              border: '1px solid #f7931a',
+              color: '#f7931a',
+              width: '100%',
+            }}
+          >
+            📷 QR-Code scannen
+          </button>
+        )}
+
         <textarea
           value={tokenInput}
           onChange={e => setTokenInput(e.target.value)}
@@ -307,6 +453,53 @@ function CashuScreen({
             marginBottom: '12px',
           }}
         />
+
+        {/* Token QR Display */}
+        {tokenInput && !scanningQR && (
+          <div style={{ marginBottom: '16px', textAlign: 'center' }}>
+            {!showTokenQR ? (
+              <button
+                onClick={() => setShowTokenQR(true)}
+                style={{
+                  ...quickAmountStyle,
+                  backgroundColor: '#1a1a1a',
+                  border: '1px solid #f7931a',
+                  color: '#f7931a',
+                }}
+              >
+                📷 Token als QR anzeigen
+              </button>
+            ) : (
+              <div>
+                <div
+                  style={{
+                    backgroundColor: '#ffffff',
+                    padding: '16px',
+                    borderRadius: '12px',
+                    display: 'inline-block',
+                    marginBottom: '12px',
+                  }}
+                >
+                  <QRCodeSVG value={tokenInput} size={200} level={'M'} />
+                </div>
+                <button
+                  onClick={() => setShowTokenQR(false)}
+                  style={{
+                    ...quickAmountStyle,
+                    backgroundColor: '#333',
+                    color: '#fff',
+                    fontSize: '12px',
+                    display: 'block',
+                    width: '100%',
+                  }}
+                >
+                  Schließen
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         <div style={{ display: 'flex', gap: '8px' }}>
           <button
             onClick={verifyToken}
