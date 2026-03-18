@@ -9,7 +9,9 @@
     "merchant": "Händler",
     "products": "Produkte",
     "swap": "Tauschen",
-    "settings": "Einstellungen"
+    "settings": "Einstellungen",
+    "pos": "Kasse (POS)",
+    "dashboard": "Dashboard"
   },
   "auth": {
     "login": "Anmelden",
@@ -106,6 +108,7 @@
     "changePassword": "Passwort ändern",
     "deleteAccount": "Konto löschen",
     "language": "Sprache",
+    "startScreen": "Startbildschirm",
     "german": "Deutsch",
     "english": "Englisch"
   },
@@ -142,5 +145,13 @@
     "server": "Serverfehler",
     "invalidAmount": "Ungültiger Betrag",
     "notAuthenticated": "Nicht angemeldet"
+  },
+  "pos": {
+    "pos": "Kasse",
+    "total": "Gesamt",
+    "clearCart": "Warenkorb leeren",
+    "noProducts": "Keine Produkte vorhanden",
+    "addProducts": "Produkte hinzufügen",
+    "manuallyCompleted": "Manuell als bezahlt markieren"
   }
 }

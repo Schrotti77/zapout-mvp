@@ -9,7 +9,9 @@
     "merchant": "Merchant",
     "products": "Products",
     "swap": "Swap",
-    "settings": "Settings"
+    "settings": "Settings",
+    "pos": "POS Terminal",
+    "dashboard": "Dashboard"
   },
   "auth": {
     "login": "Login",
@@ -106,6 +108,7 @@
     "changePassword": "Change Password",
     "deleteAccount": "Delete Account",
     "language": "Language",
+    "startScreen": "Start Screen",
     "german": "German",
     "english": "English"
   },
@@ -142,5 +145,13 @@
     "server": "Server error",
     "invalidAmount": "Invalid amount",
     "notAuthenticated": "Not authenticated"
+  },
+  "pos": {
+    "pos": "POS Terminal",
+    "total": "Total",
+    "clearCart": "Clear Cart",
+    "noProducts": "No products available",
+    "addProducts": "Add Products",
+    "manuallyCompleted": "Mark as Paid Manually"
   }
 }

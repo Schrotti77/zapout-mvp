@@ -6,6 +6,7 @@ import Products from './screens/Products';
 import SettingsScreen from './screens/SettingsScreen';
 import CashuScreen from './screens/CashuScreen';
 import DashboardScreen from './screens/DashboardScreen';
+import POSScreen from './screens/POSScreen';
 import AuthScreen from './screens/AuthScreen';
 import CartDrawer from './components/CartDrawer';
 import Layout, { ScreenCard, PageTitle, SectionTitle } from './components/ui/Layout';
@@ -16,7 +17,14 @@ const API_URL = 'http://localhost:8000';
 
 function App() {
   const { t } = useTranslation();
+  // Get preferred start screen from settings
+  const getDefaultScreen = () => {
+    const stored = localStorage.getItem('zapout_start_screen');
+    return stored === 'pos' ? 'pos' : 'dashboard';
+  };
+
   const [screen, setScreen] = useState('register');
+  const [defaultScreen, setDefaultScreen] = useState(getDefaultScreen);
   const [token, setToken] = useState(localStorage.getItem('zapout_token'));
   const [payments, setPayments] = useState([]);
   const [cashuBal, setCashuBal] = useState(0);
@@ -28,7 +36,7 @@ function App() {
 
   useEffect(() => {
     if (token) {
-      setScreen('dashboard');
+      setScreen(localStorage.getItem('zapout_start_screen') || 'dashboard');
       loadPayments();
     }
   }, [token]);
@@ -100,6 +108,11 @@ function App() {
         setScreen={setScreen}
       />
     );
+  }
+
+  // POS Screen
+  if (screen === 'pos') {
+    return <POSScreen onBack={() => setScreen('settings')} />;
   }
 
   // Cashu Screen

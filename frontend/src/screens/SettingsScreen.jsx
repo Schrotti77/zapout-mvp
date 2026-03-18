@@ -201,6 +201,67 @@ export default function SettingsScreen({ onBack }) {
         </div>
       </div>
 
+      {/* Start Screen Section */}
+      <div style={cardStyle}>
+        <div style={sectionTitleStyle}>{t('settings.startScreen') || 'Startbildschirm'}</div>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button
+            onClick={() => {
+              localStorage.setItem('zapout_start_screen', 'dashboard');
+              window.location.reload();
+            }}
+            style={{
+              flex: 1,
+              padding: '12px',
+              borderRadius: '8px',
+              border:
+                (localStorage.getItem('zapout_start_screen') || 'dashboard') === 'dashboard'
+                  ? '2px solid #f7931a'
+                  : '1px solid #333',
+              backgroundColor:
+                (localStorage.getItem('zapout_start_screen') || 'dashboard') === 'dashboard'
+                  ? '#1a1a1a'
+                  : '#0a0a0a',
+              color:
+                (localStorage.getItem('zapout_start_screen') || 'dashboard') === 'dashboard'
+                  ? '#f7931a'
+                  : '#666',
+              fontSize: '14px',
+              fontWeight:
+                (localStorage.getItem('zapout_start_screen') || 'dashboard') === 'dashboard'
+                  ? '600'
+                  : '400',
+              cursor: 'pointer',
+            }}
+          >
+            📊 {t('nav.dashboard') || 'Dashboard'}
+          </button>
+          <button
+            onClick={() => {
+              localStorage.setItem('zapout_start_screen', 'pos');
+              window.location.reload();
+            }}
+            style={{
+              flex: 1,
+              padding: '12px',
+              borderRadius: '8px',
+              border:
+                localStorage.getItem('zapout_start_screen') === 'pos'
+                  ? '2px solid #f7931a'
+                  : '1px solid #333',
+              backgroundColor:
+                localStorage.getItem('zapout_start_screen') === 'pos' ? '#1a1a1a' : '#0a0a0a',
+              color: localStorage.getItem('zapout_start_screen') === 'pos' ? '#f7931a' : '#666',
+              fontSize: '14px',
+              fontWeight: localStorage.getItem('zapout_start_screen') === 'pos' ? '600' : '400',
+              cursor: 'pointer',
+            }}
+          >
+            🏪 {t('nav.pos') || 'Kasse (POS)'}
+          </button>
+        </div>
+      </div>
+
       {/* Account Section */}
       <div style={cardStyle}>
         <div style={sectionTitleStyle}>{t('settings.account')}</div>
