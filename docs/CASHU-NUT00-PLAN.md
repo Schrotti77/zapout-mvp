@@ -10,6 +10,7 @@ Die Cashu Minting Integration erfordert die Implementierung von NUT-00 (BDHKE - 
 ## Das Problem
 
 Der aktuelle `/cashu/mint` Endpoint gibt einen Fehler zurück, weil:
+
 - POST `/v1/mint/bolt11` erwartet `outputs` (Array von BlindedMessages)
 - Diese müssen mit BDHKE Kryptographie erstellt werden
 - Die cashu-ts Library hat einen Bug
@@ -23,7 +24,7 @@ Wallet                           Mint
 2. Y = hash_to_curve(x)
 3. Wähle blinding factor r
 4. B_ = Y + r·G        →   (Blinded Message)
-                              
+
                            5. C_ = k·B_  (k = Mint's private key)
                            ← Signatur
 
@@ -50,21 +51,21 @@ def hash_to_curve(message: bytes) -> PublicKey:
 
 def create_blinded_message(secret: str, amount: int, keyset_id: str):
     """Erstellt eine Blinded Message (Output) für die Mint API"""
-    
+
     # 1. Secret x
     x = secret.encode()
-    
+
     # 2. Y = hash_to_curve(x)
     Y = hash_to_curve(x)
-    
+
     # 3. Blinding factor r
     r = PrivateKey(secrets.token_bytes(32), raw=True)
-    
+
     # 4. B_ = Y + r·G
     rG = r.pubkey
     B_ = PublicKey()
     B_.combine([Y, rG])
-    
+
     return {
         "amount": amount,
         "id": keyset_id,
@@ -89,45 +90,49 @@ def create_blinded_message(secret: str, amount: int, keyset_id: str):
 
 ## Wichtige Punkte
 
-| Konzept | Bedeutung |
-|---------|-----------|
-| **secret x** | Wallet behält es – beweist Besitz des Tokens |
-| **r (blinding)** | Zum Unblinding der Mint-Signatur nötig |
-| **B_** | Mint sieht nur den geblindeten Punkt, nicht x |
-| **Amounts** | Müssen Zweierpotenzen sein (1,2,4,8,16,32...) |
-| **Keyset ID** | Von `/v1/keysets` holen |
+| Konzept          | Bedeutung                                     |
+| ---------------- | --------------------------------------------- |
+| **secret x**     | Wallet behält es – beweist Besitz des Tokens  |
+| **r (blinding)** | Zum Unblinding der Mint-Signatur nötig        |
+| **B\_**          | Mint sieht nur den geblindeten Punkt, nicht x |
+| **Amounts**      | Müssen Zweierpotenzen sein (1,2,4,8,16,32...) |
+| **Keyset ID**    | Von `/v1/keysets` holen                       |
 
 ## Implementierungs-Schritte
 
 1. **Dependencies installieren**
+
    - `pip install secp256k1` oder `pip install fastecdsa`
 
 2. **hash_to_curve() implementieren**
+
    - Korrekte Hash-Funktion für secp256k1
    - Wichtig: deterministisch, gleiche Nachricht → gleicher Punkt
 
 3. **Blinded Message erstellen**
+
    - Secret generieren
    - Y = hash_to_curve(secret)
    - r = random blinding factor
-   - B_ = Y + r·G
+   - B\_ = Y + r·G
 
 4. **Mint Request bauen**
+
    - quote_id einfügen
-   - outputs Array mit B_ und amount
+   - outputs Array mit B\_ und amount
 
 5. **Unblinding (nach Mint-Response)**
-   - C = C_ - r·K (K = Mint's public key)
+   - C = C\_ - r·K (K = Mint's public key)
    - C ist die gültige Signatur über secret
 
 ## Aufwand
 
-| Phase | Aufwand |
-|-------|---------|
-| Research & Verständnis | ~2h |
-| Basis-Implementierung | ~4h |
-| Tests & Verification | ~3h |
-| **Total** | ~9h |
+| Phase                  | Aufwand |
+| ---------------------- | ------- |
+| Research & Verständnis | ~2h     |
+| Basis-Implementierung  | ~4h     |
+| Tests & Verification   | ~3h     |
+| **Total**              | ~9h     |
 
 ## Risiken
 
@@ -138,6 +143,7 @@ def create_blinded_message(secret: str, amount: int, keyset_id: str):
 ## Alternative
 
 Falls die eigene Implementierung zu komplex wird:
+
 - cashu-ts Bug fixen (JavaScript)
 - Firefly oder andere Wallet als Reference verwenden
 - Mock-Modus für Demo verwenden

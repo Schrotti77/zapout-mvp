@@ -1,6 +1,6 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import { nodePolyfills } from 'vite-plugin-node-polyfills'
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import { nodePolyfills } from 'vite-plugin-node-polyfills';
 
 export default defineConfig({
   plugins: [react(), nodePolyfills()],
@@ -10,10 +10,10 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true,
-      }
-    }
+      },
+    },
   },
   optimizeDeps: {
-    include: ['@cashu/cashu-ts']
-  }
-})
+    include: ['@cashu/cashu-ts'],
+  },
+});

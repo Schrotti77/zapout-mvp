@@ -18,51 +18,57 @@
 ## Farbpalette
 
 ### Primary Colors
-| Name | Hex | Verwendung |
-|------|-----|------------|
-| Primary | `#f7931a` | Buttons, Links, Akzente |
-| Primary Light | `#ffa333` | Hover-State |
-| Primary Dark | `#e5820a` | Active-State |
+
+| Name          | Hex       | Verwendung              |
+| ------------- | --------- | ----------------------- |
+| Primary       | `#f7931a` | Buttons, Links, Akzente |
+| Primary Light | `#ffa333` | Hover-State             |
+| Primary Dark  | `#e5820a` | Active-State            |
 
 ### Background Colors
-| Name | Hex | Verwendung |
-|------|-----|------------|
-| Background | `#0a0a0a` | App-Hintergrund |
-| Surface | `#141414` | Cards, Container |
+
+| Name          | Hex       | Verwendung                 |
+| ------------- | --------- | -------------------------- |
+| Background    | `#0a0a0a` | App-Hintergrund            |
+| Surface       | `#141414` | Cards, Container           |
 | Surface Light | `#1f1f1f` | Buttons, Input-Hintergrund |
-| Border | `#222222` | Card-Ränder, Trennlinien |
-| Border Light | `#2a2a2a` | Input-Ränder |
+| Border        | `#222222` | Card-Ränder, Trennlinien   |
+| Border Light  | `#2a2a2a` | Input-Ränder               |
 
 ### Text Colors
-| Name | Hex | Verwendung |
-|------|-----|------------|
-| Text Primary | `#ffffff` | Überschriften, wichtiger Text |
-| Text Secondary | `#c0c0c0` | Body-Text |
-| Text Muted | `#666666` | Platzhalter, Hinweise |
+
+| Name           | Hex       | Verwendung                    |
+| -------------- | --------- | ----------------------------- |
+| Text Primary   | `#ffffff` | Überschriften, wichtiger Text |
+| Text Secondary | `#c0c0c0` | Body-Text                     |
+| Text Muted     | `#666666` | Platzhalter, Hinweise         |
 
 ### Semantic Colors
-| Name | Hex | Verwendung |
-|------|-----|------------|
+
+| Name    | Hex       | Verwendung            |
+| ------- | --------- | --------------------- |
 | Success | `#22c55e` | Erfolgreiche Aktionen |
-| Warning | `#f59e0b` | Warnungen |
-| Error | `#ef4444` | Fehler |
+| Warning | `#f59e0b` | Warnungen             |
+| Error   | `#ef4444` | Fehler                |
 
 ---
 
 ## Typography
 
 ### Font Family
+
 - **System-Font:** -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto
 
 ### Font Sizes
-| Element | Size | Weight |
-|---------|------|--------|
-| Page Title | 24px | 600 |
-| Section Title | 16px | 600 |
-| Card Title | 16px | 600 |
-| Body | 14-16px | 400 |
-| Small/Caption | 12px | 400 |
-| Badge | 12px | 500 |
+
+| Element       | Size    | Weight |
+| ------------- | ------- | ------ |
+| Page Title    | 24px    | 600    |
+| Section Title | 16px    | 600    |
+| Card Title    | 16px    | 600    |
+| Body          | 14-16px | 400    |
+| Small/Caption | 12px    | 400    |
+| Badge         | 12px    | 500    |
 
 ---
 
@@ -71,6 +77,7 @@
 ### 1. Buttons
 
 #### Primary Button
+
 ```css
 background: linear-gradient(135deg, #f7931a 0%, #e5820a 100%);
 color: #000000;
@@ -82,11 +89,13 @@ box-shadow: 0 4px 12px rgba(247, 147, 26, 0.3);
 ```
 
 **States:**
+
 - Hover: Heller, mehr Schatten
 - Active: Kein Schatten, leicht kleiner
 - Disabled: 50% Opacity
 
 #### Secondary Button
+
 ```css
 background-color: #1f1f1f;
 color: #ffffff;
@@ -98,6 +107,7 @@ padding: 14px 24px;
 ---
 
 ### 2. Input Fields
+
 ```css
 width: 100%;
 padding: 14px 16px;
@@ -109,12 +119,14 @@ font-size: 16px;
 ```
 
 **States:**
+
 - Focus: Orange Border (#f7931a) + Glow
 - Placeholder: #666666
 
 ---
 
 ### 3. Cards
+
 ```css
 background-color: #141414;
 border: 1px solid #222222;
@@ -125,6 +137,7 @@ padding: 20px;
 ---
 
 ### 4. Navigation
+
 - Fixed Bottom Navigation
 - 7 Items: 💰 Zahlen | 🪙 Cashu | ⚡ Swap | 🏪 Händler | 🛍️ Produkte | ⚙️ Einst. | 🛒 Warenkorb
 - Active: Primary Color (#f7931a)
@@ -135,6 +148,7 @@ padding: 20px;
 ## Screen Layout
 
 ### Standard Screen Structure
+
 ```
 ┌─────────────────────────────────┐
 │         Header (Logo)           │  <- 56px, #0d0d0d bg
@@ -154,11 +168,13 @@ padding: 20px;
 ## Screens
 
 ### 1. Register / Login
+
 - Logo mit Gradient
 - Email + Password Inputs
 - Primary Button (Bitcoin Orange)
 
 ### 2. Dashboard (Zahlen)
+
 - Today's Revenue Card
 - Quick Amount Buttons (10€, 20€, 50€)
 - Custom Amount Input
@@ -166,32 +182,38 @@ padding: 20px;
 - Recent Payments List
 
 ### 3. Cashu
+
 - Balance Display (sats)
 - Mint Quote Generator
 - Quick Amount (100, 500, 1000 sats)
 - Info Card about Cashu
 
 ### 4. Swap
+
 - Swap Type Selector
 - Amount Input
 - Quick Amount Buttons
 
 ### 5. Merchant (Händler)
+
 - Amount Input
 - Quick Amount Buttons
 - Payment Request Display (QR/Token)
 - Status Display
 
 ### 6. Products (Produkte)
+
 - Add Product Button
 - Product Cards (Name, Description, Price, Actions)
 - Product Form (Create/Edit)
 
 ### 7. Settings
+
 - Account Info
 - Logout Button
 
 ### 8. Cart (Drawer)
+
 - Cart Items List
 - Total Amount
 - Checkout Button
@@ -202,6 +224,7 @@ padding: 20px;
 ## Dateien
 
 ### Frontend Struktur
+
 ```
 frontend/
 ├── src/
@@ -230,18 +253,21 @@ frontend/
 ## To-Do / Verbesserungen
 
 ### Phase 1 - Quick Wins
+
 - [ ] Animations verbessern (Page Transitions)
 - [ ] Loading States für alle API-Calls
 - [ ] Error States verbessern
 - [ ] Leere States (no products, no payments)
 
 ### Phase 2 - UX
+
 - [ ] Pull-to-Refresh
 - [ ] Toast Notifications
 - [ ] Better QR-Code Display
 - [ ] Invoice Expiry Countdown
 
 ### Phase 3 - Features
+
 - [ ] PWA Support
 - [ ] i18n (Deutsch/English)
 - [ ] Dark/Light Mode Toggle
@@ -257,5 +283,5 @@ frontend/
 
 ---
 
-*Erstellt: 2026-03-17*
-*Letzte Änderung: 2026-03-17*
+_Erstellt: 2026-03-17_
+_Letzte Änderung: 2026-03-17_

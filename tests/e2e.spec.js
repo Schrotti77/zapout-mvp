@@ -6,7 +6,6 @@
 const { test, expect } = require('@playwright/test');
 
 test.describe('ZapOut E2E Tests', () => {
-  
   test.beforeEach(async ({ page }) => {
     await page.goto('http://localhost:3000');
     await page.evaluate(() => localStorage.clear());
@@ -36,7 +35,6 @@ test.describe('ZapOut E2E Tests', () => {
 });
 
 test.describe('ZapOut API Integration', () => {
-  
   test('backend health check', async ({ request }) => {
     const response = await request.get('http://localhost:8000/health');
     expect(response.ok()).toBeTruthy();
@@ -49,8 +47,8 @@ test.describe('ZapOut API Integration', () => {
     const response = await request.post('http://localhost:8000/auth/register', {
       data: {
         email: uniqueEmail,
-        password: 'testpass123'
-      }
+        password: 'testpass123',
+      },
     });
     expect(response.ok()).toBeTruthy();
     const data = await response.json();
@@ -59,15 +57,15 @@ test.describe('ZapOut API Integration', () => {
 
   test('can login after registration', async ({ request }) => {
     const uniqueEmail = `logintest-${Date.now()}@example.com`;
-    
+
     // Register
     await request.post('http://localhost:8000/auth/register', {
-      data: { email: uniqueEmail, password: 'mypassword' }
+      data: { email: uniqueEmail, password: 'mypassword' },
     });
-    
+
     // Login
     const loginRes = await request.post('http://localhost:8000/auth/login', {
-      data: { email: uniqueEmail, password: 'mypassword' }
+      data: { email: uniqueEmail, password: 'mypassword' },
     });
     expect(loginRes.ok()).toBeTruthy();
     const data = await loginRes.json();
@@ -78,13 +76,13 @@ test.describe('ZapOut API Integration', () => {
     // Try to login with wrong password 5 times
     for (let i = 0; i < 5; i++) {
       await request.post('http://localhost:8000/auth/login', {
-        data: { email: 'ratelimit@test.com', password: 'wrong' }
+        data: { email: 'ratelimit@test.com', password: 'wrong' },
       });
     }
-    
+
     // 6th attempt should be blocked
     const response = await request.post('http://localhost:8000/auth/login', {
-      data: { email: 'ratelimit@test.com', password: 'wrong' }
+      data: { email: 'ratelimit@test.com', password: 'wrong' },
     });
     expect(response.status()).toBe(429);
   });

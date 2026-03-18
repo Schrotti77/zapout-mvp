@@ -33,28 +33,35 @@
 ### Input Fields
 
 ```jsx
-<input style={{
-  width: '100%',
-  padding: '14px 16px',
-  backgroundColor: '#1a1a1a',
-  border: '1px solid #2a2a2a',
-  borderRadius: '12px',
-  color: '#ffffff',
-  fontSize: '16px',
-  outline: 'none'
-}} placeholder="Text..." />
+<input
+  style={{
+    width: '100%',
+    padding: '14px 16px',
+    backgroundColor: '#1a1a1a',
+    border: '1px solid #2a2a2a',
+    borderRadius: '12px',
+    color: '#ffffff',
+    fontSize: '16px',
+    outline: 'none',
+  }}
+  placeholder="Text..."
+/>
 ```
 
 ### Cards
 
 ```jsx
-<div style={{
-  backgroundColor: '#141414',
-  border: '1px solid #222222',
-  borderRadius: '16px',
-  padding: '20px',
-  marginBottom: '16px'
-}}>Content</div>
+<div
+  style={{
+    backgroundColor: '#141414',
+    border: '1px solid #222222',
+    borderRadius: '16px',
+    padding: '20px',
+    marginBottom: '16px',
+  }}
+>
+  Content
+</div>
 ```
 
 ### Badges
@@ -92,59 +99,71 @@
 
 ```jsx
 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
-  <button style={{
-    backgroundColor: '#1f1f1f',
-    color: '#ffffff',
-    border: '1px solid #2a2a2a',
-    padding: '12px',
-    borderRadius: '10px',
-    fontSize: '14px'
-  }}>10€</button>
+  <button
+    style={{
+      backgroundColor: '#1f1f1f',
+      color: '#ffffff',
+      border: '1px solid #2a2a2a',
+      padding: '12px',
+      borderRadius: '10px',
+      fontSize: '14px',
+    }}
+  >
+    10€
+  </button>
 </div>
 ```
 
 ### Page Title
 
 ```jsx
-<h2 style={{
-  color: '#ffffff',
-  fontSize: '24px',
-  fontWeight: '600',
-  marginBottom: '20px'
-}}>Title</h2>
+<h2
+  style={{
+    color: '#ffffff',
+    fontSize: '24px',
+    fontWeight: '600',
+    marginBottom: '20px',
+  }}
+>
+  Title
+</h2>
 ```
 
 ### Section Title
 
 ```jsx
-<h3 style={{
-  color: '#ffffff',
-  fontSize: '16px',
-  fontWeight: '600',
-  marginTop: '24px',
-  marginBottom: '12px'
-}}>Title</h3>
+<h3
+  style={{
+    color: '#ffffff',
+    fontSize: '16px',
+    fontWeight: '600',
+    marginTop: '24px',
+    marginBottom: '12px',
+  }}
+>
+  Title
+</h3>
 ```
 
 ---
 
 ## Farben (Quick Reference)
 
-| Element | Hex |
-|---------|-----|
-| Primary | `#f7931a` |
-| Background | `#0a0a0a` |
-| Surface | `#141414` |
-| Surface Light | `#1f1f1f` |
-| Border | `#222222` |
-| Border Light | `#2a2a2a` |
-| Text | `#ffffff` |
+| Element        | Hex       |
+| -------------- | --------- |
+| Primary        | `#f7931a` |
+| Background     | `#0a0a0a` |
+| Surface        | `#141414` |
+| Surface Light  | `#1f1f1f` |
+| Border         | `#222222` |
+| Border Light   | `#2a2a2a` |
+| Text           | `#ffffff` |
 | Text Secondary | `#c0c0c0` |
-| Text Muted | `#666666` |
-| Success | `#22c55e` |
-| Warning | `#f59e0b` |
-| Error | `#ef4444` |
+| Text Muted     | `#666666` |
+| Success        | `#22c55e` |
+| Warning        | `#f59e0b` |
+| Error          | `#ef4444` |
 
 ---
 
-*2026-03-17*
+_2026-03-17_

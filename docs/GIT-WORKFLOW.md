@@ -104,6 +104,7 @@ git push origin main develop
 ## Gitignore Regeln
 
 Bereits in `.gitignore`:
+
 - `node_modules/` - Nie committen!
 - `*.db` - Lokale Datenbanken
 - `.env` - Secrets
@@ -137,12 +138,14 @@ alias gcap='git add -A && git commit -m'
 ## Do's & Don'ts
 
 ### ✅ Do
+
 - Kleine, fokussierte Commits
 - Aussagekräftige Commit Messages
 - Regelmäßig pushen (Backup!)
 - Issues referenzieren (#1, #2)
 
 ### ❌ Don't
+
 - `git commit -m "fix"` - Nichts sagend!
 - Commits mitten in der Arbeit
 - Direkt auf main pushen

@@ -1,17 +1,11 @@
-export function Container({ 
-  children, 
-  className = '',
-  size = 'md',
-  center = true,
-  ...props 
-}) {
+export function Container({ children, className = '', size = 'md', center = true, ...props }) {
   const sizes = {
     sm: 'max-w-sm',
     md: 'max-w-md',
     lg: 'max-w-lg',
     xl: 'max-w-xl',
     full: 'max-w-full',
-  }
+  };
 
   return (
     <div
@@ -25,12 +19,12 @@ export function Container({
     >
       {children}
     </div>
-  )
+  );
 }
 
 export function Screen({ children, className = '', pad = true }) {
   return (
-    <div 
+    <div
       className={`
         min-h-[100dvh] flex flex-col
         ${pad ? 'px-4 py-6' : ''}
@@ -40,7 +34,7 @@ export function Screen({ children, className = '', pad = true }) {
     >
       {children}
     </div>
-  )
+  );
 }
 
 export function Section({ children, className = '', title, description }) {
@@ -53,29 +47,20 @@ export function Section({ children, className = '', title, description }) {
               {title}
             </h2>
           )}
-          {description && (
-            <p className="text-surface-500 dark:text-surface-400">
-              {description}
-            </p>
-          )}
+          {description && <p className="text-surface-500 dark:text-surface-400">{description}</p>}
         </div>
       )}
       {children}
     </section>
-  )
+  );
 }
 
-export function Grid({ 
-  children, 
-  cols = { default: 1, sm: 2, lg: 3 },
-  gap = 4,
-  className = '' 
-}) {
+export function Grid({ children, cols = { default: 1, sm: 2, lg: 3 }, gap = 4, className = '' }) {
   return (
-    <div 
+    <div
       className={`
-        grid grid-cols-${cols.default} 
-        sm:grid-cols-${cols.sm || cols.default} 
+        grid grid-cols-${cols.default}
+        sm:grid-cols-${cols.sm || cols.default}
         lg:grid-cols-${cols.lg || cols.sm || cols.default}
         gap-${gap}
         ${className}
@@ -83,19 +68,19 @@ export function Grid({
     >
       {children}
     </div>
-  )
+  );
 }
 
-export function Flex({ 
-  children, 
+export function Flex({
+  children,
   direction = 'row',
   justify = 'start',
   align = 'center',
   gap = 4,
-  className = '' 
+  className = '',
 }) {
   return (
-    <div 
+    <div
       className={`
         flex flex-${direction}
         justify-${justify}
@@ -106,15 +91,11 @@ export function Flex({
     >
       {children}
     </div>
-  )
+  );
 }
 
 export function Divider({ className = '' }) {
-  return (
-    <div 
-      className={`h-px bg-surface-200 dark:bg-surface-700 ${className}`} 
-    />
-  )
+  return <div className={`h-px bg-surface-200 dark:bg-surface-700 ${className}`} />;
 }
 
-export default Container
+export default Container;

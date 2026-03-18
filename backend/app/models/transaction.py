@@ -1,46 +1,35 @@
-from sqlalchemy import (
-    Column, Integer, String, Float, 
-    DateTime, ForeignKey, Enum
-)
-from sqlalchemy.sql import func
 from app.database import Base
+from sqlalchemy import Column, DateTime, Enum, Float, ForeignKey, Integer, String
+from sqlalchemy.sql import func
+
 
 class Transaction(Base):
     __tablename__ = "transactions"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    
+
     # Kern-Felder
-    type = Column(
-        Enum("send", "receive", name="tx_type"), 
-        nullable=False
-    )
+    type = Column(Enum("send", "receive", name="tx_type"), nullable=False)
     amount = Column(Integer, nullable=False)  # in Satoshis
-    
+
     # Details
-    recipient = Column(String(255), nullable=True)    # Lightning Address
+    recipient = Column(String(255), nullable=True)  # Lightning Address
     description = Column(String(500), nullable=True)  # Memo/Notiz
-    payment_method = Column(
-        Enum("lightning", "cashu", name="pay_method"),
-        default="lightning"
-    )
-    
+    payment_method = Column(Enum("lightning", "cashu", name="pay_method"), default="lightning")
+
     # Status
-    status = Column(
-        Enum("pending", "completed", "failed", name="tx_status"),
-        default="pending"
-    )
+    status = Column(Enum("pending", "completed", "failed", name="tx_status"), default="pending")
     payment_hash = Column(String(255), nullable=True)
-    
+
     # Timestamps
     created_at = Column(DateTime, server_default=func.now())
     completed_at = Column(DateTime, nullable=True)
-    
+
     # Kategorisierung (Phase 2)
     category = Column(String(50), nullable=True)
     tags = Column(String(255), nullable=True)
-    
+
     def to_dict(self):
         return {
             "id": self.id,

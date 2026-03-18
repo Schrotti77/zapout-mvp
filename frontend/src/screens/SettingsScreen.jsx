@@ -7,7 +7,7 @@ const cardStyle = {
   border: '1px solid #222222',
   borderRadius: '16px',
   padding: '20px',
-  marginBottom: '16px'
+  marginBottom: '16px',
 };
 
 const sectionTitleStyle = {
@@ -16,19 +16,19 @@ const sectionTitleStyle = {
   textTransform: 'uppercase',
   letterSpacing: '1.5px',
   marginBottom: '12px',
-  fontWeight: '600'
+  fontWeight: '600',
 };
 
 const labelStyle = {
   color: '#888888',
   fontSize: '13px',
-  marginBottom: '4px'
+  marginBottom: '4px',
 };
 
 const valueStyle = {
   color: '#ffffff',
   fontSize: '15px',
-  fontWeight: '500'
+  fontWeight: '500',
 };
 
 const statusOnlineStyle = {
@@ -37,7 +37,7 @@ const statusOnlineStyle = {
   gap: '6px',
   color: '#22c55e',
   fontSize: '13px',
-  fontWeight: '500'
+  fontWeight: '500',
 };
 
 const statusOfflineStyle = {
@@ -46,7 +46,7 @@ const statusOfflineStyle = {
   gap: '6px',
   color: '#ef4444',
   fontSize: '13px',
-  fontWeight: '500'
+  fontWeight: '500',
 };
 
 const statBoxStyle = {
@@ -55,7 +55,7 @@ const statBoxStyle = {
   borderRadius: '12px',
   padding: '16px',
   textAlign: 'center',
-  flex: 1
+  flex: 1,
 };
 
 const dangerButtonStyle = {
@@ -68,7 +68,7 @@ const dangerButtonStyle = {
   fontSize: '14px',
   fontWeight: '500',
   cursor: 'pointer',
-  marginTop: '8px'
+  marginTop: '8px',
 };
 
 export default function SettingsScreen({ onBack }) {
@@ -94,7 +94,7 @@ export default function SettingsScreen({ onBack }) {
       return;
     }
 
-    const headers = { 'Authorization': `Bearer ${token}` };
+    const headers = { Authorization: `Bearer ${token}` };
 
     try {
       // Load all data in parallel
@@ -102,7 +102,7 @@ export default function SettingsScreen({ onBack }) {
         fetch(`${API_URL}/user/me`, { headers }),
         fetch(`${API_URL}/cashu/info`, { headers }),
         fetch(`${API_URL}/cashu/balance`, { headers }),
-        fetch(`${API_URL}/payments`, { headers })
+        fetch(`${API_URL}/payments`, { headers }),
       ]);
 
       if (userRes.ok) setUser(await userRes.json());
@@ -124,7 +124,6 @@ export default function SettingsScreen({ onBack }) {
       } catch {
         setLightningStatus({ connected: false });
       }
-
     } catch (err) {
       setError('Fehler beim Laden der Daten');
       console.error(err);
@@ -133,13 +132,13 @@ export default function SettingsScreen({ onBack }) {
     }
   };
 
-  const formatDate = (dateStr) => {
+  const formatDate = dateStr => {
     if (!dateStr) return 'N/A';
     const date = new Date(dateStr.replace(' ', 'T'));
-    return date.toLocaleDateString('de-DE', { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
+    return date.toLocaleDateString('de-DE', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
     });
   };
 
@@ -147,19 +146,11 @@ export default function SettingsScreen({ onBack }) {
   const completedPayments = payments.filter(p => p.status === 'completed').length;
 
   if (loading) {
-    return (
-      <div style={{ color: '#888888', textAlign: 'center', padding: '40px' }}>
-        Lade...
-      </div>
-    );
+    return <div style={{ color: '#888888', textAlign: 'center', padding: '40px' }}>Lade...</div>;
   }
 
   if (error) {
-    return (
-      <div style={{ color: '#ef4444', textAlign: 'center', padding: '40px' }}>
-        {error}
-      </div>
-    );
+    return <div style={{ color: '#ef4444', textAlign: 'center', padding: '40px' }}>{error}</div>;
   }
 
   return (
@@ -167,7 +158,7 @@ export default function SettingsScreen({ onBack }) {
       {/* Account Section */}
       <div style={cardStyle}>
         <div style={sectionTitleStyle}>Konto</div>
-        
+
         <div style={{ marginBottom: '16px' }}>
           <div style={labelStyle}>E-Mail</div>
           <div style={valueStyle}>{user?.email || 'N/A'}</div>
@@ -187,17 +178,26 @@ export default function SettingsScreen({ onBack }) {
       {/* Lightning Node Section */}
       <div style={cardStyle}>
         <div style={sectionTitleStyle}>⚡ Lightning Node</div>
-        
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: '16px',
+          }}
+        >
           <div>
             <div style={labelStyle}>Status</div>
             <div style={lightningStatus?.connected ? statusOnlineStyle : statusOfflineStyle}>
-              <span style={{
-                width: '8px',
-                height: '8px',
-                borderRadius: '50%',
-                backgroundColor: lightningStatus?.connected ? '#22c55e' : '#ef4444'
-              }}></span>
+              <span
+                style={{
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  backgroundColor: lightningStatus?.connected ? '#22c55e' : '#ef4444',
+                }}
+              ></span>
               {lightningStatus?.connected ? 'Verbunden' : 'Nicht verbunden'}
             </div>
           </div>
@@ -218,7 +218,7 @@ export default function SettingsScreen({ onBack }) {
       {/* Cashu Section */}
       <div style={cardStyle}>
         <div style={sectionTitleStyle}>🪙 Cashu Wallet</div>
-        
+
         <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
           <div style={statBoxStyle}>
             <div style={{ color: '#888888', fontSize: '11px', marginBottom: '4px' }}>Balance</div>
@@ -244,12 +244,14 @@ export default function SettingsScreen({ onBack }) {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{
-            width: '8px',
-            height: '8px',
-            borderRadius: '50%',
-            backgroundColor: cashuInfo?.working ? '#22c55e' : '#ef4444'
-          }}></span>
+          <span
+            style={{
+              width: '8px',
+              height: '8px',
+              borderRadius: '50%',
+              backgroundColor: cashuInfo?.working ? '#22c55e' : '#ef4444',
+            }}
+          ></span>
           <span style={{ color: '#888888', fontSize: '13px' }}>
             Mint {cashuInfo?.working ? 'aktiv' : 'nicht erreichbar'}
           </span>
@@ -259,7 +261,7 @@ export default function SettingsScreen({ onBack }) {
       {/* Payment Stats Section */}
       <div style={cardStyle}>
         <div style={sectionTitleStyle}>📊 Zahlungen</div>
-        
+
         <div style={{ display: 'flex', gap: '12px' }}>
           <div style={statBoxStyle}>
             <div style={{ color: '#888888', fontSize: '11px', marginBottom: '4px' }}>Gesamt</div>
@@ -268,13 +270,17 @@ export default function SettingsScreen({ onBack }) {
             </div>
           </div>
           <div style={statBoxStyle}>
-            <div style={{ color: '#888888', fontSize: '11px', marginBottom: '4px' }}>Ausstehend</div>
+            <div style={{ color: '#888888', fontSize: '11px', marginBottom: '4px' }}>
+              Ausstehend
+            </div>
             <div style={{ color: '#eab308', fontSize: '20px', fontWeight: '700' }}>
               {pendingPayments}
             </div>
           </div>
           <div style={statBoxStyle}>
-            <div style={{ color: '#888888', fontSize: '11px', marginBottom: '4px' }}>Abgeschlossen</div>
+            <div style={{ color: '#888888', fontSize: '11px', marginBottom: '4px' }}>
+              Abgeschlossen
+            </div>
             <div style={{ color: '#22c55e', fontSize: '20px', fontWeight: '700' }}>
               {completedPayments}
             </div>
@@ -285,7 +291,7 @@ export default function SettingsScreen({ onBack }) {
       {/* App Info Section */}
       <div style={cardStyle}>
         <div style={sectionTitleStyle}>ℹ️ Über ZapOut</div>
-        
+
         <div style={{ marginBottom: '12px' }}>
           <div style={labelStyle}>Version</div>
           <div style={valueStyle}>1.0.0-beta</div>
@@ -307,21 +313,23 @@ export default function SettingsScreen({ onBack }) {
       {/* Danger Zone */}
       <div style={{ ...cardStyle, borderColor: '#ef444433' }}>
         <div style={sectionTitleStyle}>🔒 Sicherheit</div>
-        
+
         <div style={{ marginBottom: '12px' }}>
           <div style={labelStyle}>Passwort</div>
           <div style={{ color: '#888888', fontSize: '13px' }}>••••••••</div>
         </div>
 
-        <button 
-          style={dangerButtonStyle}
-          onClick={() => alert('Coming soon: Passwort ändern')}
-        >
+        <button style={dangerButtonStyle} onClick={() => alert('Coming soon: Passwort ändern')}>
           Passwort ändern
         </button>
 
-        <button 
-          style={{ ...dangerButtonStyle, color: '#ef4444', borderColor: '#ef4444', marginTop: '12px' }}
+        <button
+          style={{
+            ...dangerButtonStyle,
+            color: '#ef4444',
+            borderColor: '#ef4444',
+            marginTop: '12px',
+          }}
           onClick={() => alert('Kontaktiere den Support um dein Konto zu löschen')}
         >
           Konto löschen
@@ -329,7 +337,7 @@ export default function SettingsScreen({ onBack }) {
       </div>
 
       {/* Logout */}
-      <button 
+      <button
         style={{
           width: '100%',
           backgroundColor: '#1f1f1f',
@@ -341,7 +349,7 @@ export default function SettingsScreen({ onBack }) {
           fontWeight: '500',
           cursor: 'pointer',
           marginTop: '8px',
-          marginBottom: '40px'
+          marginBottom: '40px',
         }}
         onClick={() => {
           localStorage.removeItem('zapout_token');

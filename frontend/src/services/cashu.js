@@ -44,10 +44,17 @@ class CashuService {
    */
   async createMintQuote(amount, mintUrl = DEFAULT_CASHU_MINT) {
     try {
-      const res = await fetch(API_URL + '/cashu/mint-quote?amount_cents=' + (amount * 10) + '&mint_url=' + encodeURIComponent(mintUrl), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
+      const res = await fetch(
+        API_URL +
+          '/cashu/mint-quote?amount_cents=' +
+          amount * 10 +
+          '&mint_url=' +
+          encodeURIComponent(mintUrl),
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
       return await res.json();
     } catch (e) {
       console.error('Mint quote error:', e);
@@ -60,7 +67,13 @@ class CashuService {
    */
   async checkMintQuote(quoteId, mintUrl = DEFAULT_CASHU_MINT) {
     try {
-      const res = await fetch(API_URL + '/cashu/quote-status?quote_id=' + quoteId + '&mint_url=' + encodeURIComponent(mintUrl));
+      const res = await fetch(
+        API_URL +
+          '/cashu/quote-status?quote_id=' +
+          quoteId +
+          '&mint_url=' +
+          encodeURIComponent(mintUrl)
+      );
       return await res.json();
     } catch (e) {
       console.error('Check quote error:', e);
@@ -76,7 +89,7 @@ class CashuService {
       const res = await fetch(API_URL + '/cashu/receive', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: token, token: tokenOverride })
+        body: JSON.stringify({ token: token, token: tokenOverride }),
       });
       return await res.json();
     } catch (e) {
@@ -93,7 +106,7 @@ class CashuService {
       const res = await fetch(API_URL + '/cashu/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: token })
+        body: JSON.stringify({ token: token }),
       });
       return await res.json();
     } catch (e) {
@@ -110,7 +123,7 @@ class CashuService {
       const res = await fetch(API_URL + '/cashu/melt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ invoice: invoice, token: token })
+        body: JSON.stringify({ invoice: invoice, token: token }),
       });
       return await res.json();
     } catch (e) {
@@ -222,7 +235,7 @@ export const proofStorage = {
    */
   clear() {
     localStorage.setItem(PROOFS_KEY, JSON.stringify([]));
-  }
+  },
 };
 
 export const txHistory = {
@@ -249,7 +262,7 @@ export const txHistory = {
         timestamp: Date.now(),
         type, // 'mint', 'receive', 'send', 'melt'
         amount,
-        ...details
+        ...details,
       };
       history.unshift(entry);
       // Keep last 100 transactions
@@ -267,5 +280,5 @@ export const txHistory = {
    */
   clear() {
     localStorage.setItem(HISTORY_KEY, JSON.stringify([]));
-  }
+  },
 };

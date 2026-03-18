@@ -4,7 +4,7 @@ export function Loader({ size = 'md', className = '' }) {
     md: 'w-6 h-6',
     lg: 'w-8 h-8',
     xl: 'w-12 h-12',
-  }
+  };
 
   return (
     <div className={`inline-flex items-center justify-center ${className}`}>
@@ -29,11 +29,11 @@ export function Loader({ size = 'md', className = '' }) {
         />
       </svg>
     </div>
-  )
+  );
 }
 
 export function Spinner({ size = 'md', className = '' }) {
-  return <Loader size={size} className={className} />
+  return <Loader size={size} className={className} />;
 }
 
 export function PageLoader({ text = 'Loading...' }) {
@@ -42,12 +42,12 @@ export function PageLoader({ text = 'Loading...' }) {
       <Loader size="lg" className="text-primary-500" />
       <p className="text-surface-500 dark:text-surface-400 animate-pulse">{text}</p>
     </div>
-  )
+  );
 }
 
 export function Skeleton({ className = '' }) {
   return (
-    <div 
+    <div
       className={`
         bg-gradient-to-r from-surface-200 via-surface-100 to-surface-200
         bg-[length:200%_100%] animate-shimmer
@@ -55,7 +55,7 @@ export function Skeleton({ className = '' }) {
         ${className}
       `}
     />
-  )
+  );
 }
 
 export function CardSkeleton() {
@@ -74,7 +74,7 @@ export function CardSkeleton() {
         <Skeleton className="h-8 flex-1" />
       </div>
     </div>
-  )
+  );
 }
 
-export default Loader
+export default Loader;

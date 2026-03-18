@@ -1,14 +1,7 @@
-import { forwardRef } from 'react'
+import { forwardRef } from 'react';
 
 export const Input = forwardRef(function Input(
-  { 
-    label,
-    error,
-    icon: Icon,
-    className = '', 
-    containerClassName = '',
-    ...props 
-  },
+  { label, error, icon: Icon, className = '', containerClassName = '', ...props },
   ref
 ) {
   return (
@@ -44,11 +37,9 @@ export const Input = forwardRef(function Input(
           {...props}
         />
       </div>
-      {error && (
-        <p className="text-sm text-error-500">{error}</p>
-      )}
+      {error && <p className="text-sm text-error-500">{error}</p>}
     </div>
-  )
-})
+  );
+});
 
-export default Input
+export default Input;

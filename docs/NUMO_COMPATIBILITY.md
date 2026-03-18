@@ -31,6 +31,7 @@
 ## 1. NFC/HCE Kompatibilität
 
 ### Das Problem
+
 - **WebNFC API** (`navigator.nfc`) = Chrome Android nur, NDEF read/write
 - **Keine HCE Emulation** vom Browser möglich
 - **Numo** = Full NFC/HCE auf Android
@@ -123,7 +124,7 @@ async function createInvoice(amountSats, memo) {
     amount: amountSats,
     memo: `ZapOut: ${memo}`,
     expiry: 600,
-    webhook: `${API_BASE}/api/v1/payments/confirm`
+    webhook: `${API_BASE}/api/v1/payments/confirm`,
   });
 
   return {
@@ -132,8 +133,8 @@ async function createInvoice(amountSats, memo) {
     nfc_payload: JSON.stringify({
       type: 'bolt11',
       data: invoice.payment_request,
-      amount_sats: amountSats
-    })
+      amount_sats: amountSats,
+    }),
   };
 }
 ```
@@ -148,11 +149,7 @@ import { SimplePool } from 'nostr-tools';
 class ZapOutNostr {
   constructor(relays) {
     this.pool = new SimplePool();
-    this.relays = relays || [
-      'wss://relay.damus.io',
-      'wss://relay.primal.net',
-      'wss://nos.lol'
-    ];
+    this.relays = relays || ['wss://relay.damus.io', 'wss://relay.primal.net', 'wss://nos.lol'];
   }
 
   // Create zap request (NIP-57)
@@ -164,26 +161,32 @@ class ZapOutNostr {
         ['p', recipientPubkey],
         ['amount', amountMsats.toString()],
         ['relays', ...this.relays],
-        ...(eventId ? [['e', eventId]] : [])
+        ...(eventId ? [['e', eventId]] : []),
       ],
-      created_at: Math.floor(Date.now() / 1000)
+      created_at: Math.floor(Date.now() / 1000),
     };
   }
 
   // Listen for zap receipts
   listenForZapReceipts(paymentHash, onConfirm) {
-    this.pool.subscribeMany(this.relays, [{
-      kinds: [9735],
-      '#p': [this.merchantPubkey],
-      since: Math.floor(Date.now() / 1000) - 10
-    }], {
-      onevent(event) {
-        const bolt11Tag = event.tags.find(t => t[0] === 'bolt11');
-        if (bolt11Tag && extractHash(bolt11Tag[1]) === paymentHash) {
-          onConfirm(event);
-        }
+    this.pool.subscribeMany(
+      this.relays,
+      [
+        {
+          kinds: [9735],
+          '#p': [this.merchantPubkey],
+          since: Math.floor(Date.now() / 1000) - 10,
+        },
+      ],
+      {
+        onevent(event) {
+          const bolt11Tag = event.tags.find(t => t[0] === 'bolt11');
+          if (bolt11Tag && extractHash(bolt11Tag[1]) === paymentHash) {
+            onConfirm(event);
+          }
+        },
       }
-    });
+    );
   }
 }
 ```
@@ -204,9 +207,7 @@ class ZapOutCashu {
   // Token von Numo empfangen (via NFC oder paste)
   async receiveCashuToken(tokenString) {
     const decoded = getDecodedToken(tokenString);
-    const totalAmount = decoded.token
-      .flatMap(t => t.proofs)
-      .reduce((sum, p) => sum + p.amount, 0);
+    const totalAmount = decoded.token.flatMap(t => t.proofs).reduce((sum, p) => sum + p.amount, 0);
 
     // Redeem (swap zu frischen proofs)
     const { proofs } = await this.wallet.redeem(tokenString);
@@ -218,7 +219,7 @@ class ZapOutCashu {
   async sendCashuToken(amountSats) {
     const { send } = await this.wallet.send(amountSats, this.proofs);
     return getEncodedToken({
-      token: [{ mint: this.mint.mintUrl, proofs: send }]
+      token: [{ mint: this.mint.mintUrl, proofs: send }],
     });
   }
 }
@@ -270,27 +271,27 @@ endpoints:
 
 ## 6. Implementation Roadmap
 
-| Phase | Feature | Aufwand |
-|-------|---------|---------|
-| **MVP** | BOLT11 QR Payment | ✅ Ready |
-| **1** | Cashu Token Receive (Paste) | 1 Woche |
-| **1** | Cashu Token Send (Refund) | 1 Woche |
-| **2** | Nostr NIP-57 Zaps | 2 Wochen |
-| **2** | WebNFC Reader (Android) | 1 Woche |
-| **3** | Numo Deep Link Bridge | 1 Woche |
-| **3** | Bringin EUR Settlement | 2 Wochen |
+| Phase   | Feature                     | Aufwand  |
+| ------- | --------------------------- | -------- |
+| **MVP** | BOLT11 QR Payment           | ✅ Ready |
+| **1**   | Cashu Token Receive (Paste) | 1 Woche  |
+| **1**   | Cashu Token Send (Refund)   | 1 Woche  |
+| **2**   | Nostr NIP-57 Zaps           | 2 Wochen |
+| **2**   | WebNFC Reader (Android)     | 1 Woche  |
+| **3**   | Numo Deep Link Bridge       | 1 Woche  |
+| **3**   | Bringin EUR Settlement      | 2 Wochen |
 
 ---
 
 ## 7. Numo Code Referenzen
 
-| Datei | Zweck |
-|-------|-------|
-| `LightningMintHandler.kt` | Lightning Invoice Flow |
-| `CashuWalletManager.kt` | Cashu Token Management |
-| `CashuPaymentHelper.kt` | Cashu Payment Validation |
-| `NfcPaymentProcessor.kt` | NFC NDEF Processing |
-| `PaymentRoutingCore.kt` | Payment Routing Logic |
+| Datei                             | Zweck                              |
+| --------------------------------- | ---------------------------------- |
+| `LightningMintHandler.kt`         | Lightning Invoice Flow             |
+| `CashuWalletManager.kt`           | Cashu Token Management             |
+| `CashuPaymentHelper.kt`           | Cashu Payment Validation           |
+| `NfcPaymentProcessor.kt`          | NFC NDEF Processing                |
+| `PaymentRoutingCore.kt`           | Payment Routing Logic              |
 | `AutoWithdrawSettingsActivity.kt` | Auto-Withdraw zu Lightning Address |
 
 ---

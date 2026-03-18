@@ -7,7 +7,7 @@ const cardStyle = {
   border: '1px solid #222222',
   borderRadius: '16px',
   padding: '20px',
-  marginBottom: '20px'
+  marginBottom: '20px',
 };
 
 const quickAmountStyle = {
@@ -18,7 +18,7 @@ const quickAmountStyle = {
   borderRadius: '10px',
   fontSize: '14px',
   fontWeight: '500',
-  cursor: 'pointer'
+  cursor: 'pointer',
 };
 
 const buttonStyle = {
@@ -31,7 +31,7 @@ const buttonStyle = {
   fontSize: '16px',
   fontWeight: '600',
   cursor: 'pointer',
-  marginTop: '8px'
+  marginTop: '8px',
 };
 
 const buttonSecondaryStyle = {
@@ -44,7 +44,7 @@ const buttonSecondaryStyle = {
   fontSize: '16px',
   fontWeight: '500',
   cursor: 'pointer',
-  marginTop: '8px'
+  marginTop: '8px',
 };
 
 export default function MerchantScreen({ onBack, setScreen, setCartOpen }) {
@@ -92,16 +92,16 @@ export default function MerchantScreen({ onBack, setScreen, setCartOpen }) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${getToken()}`
+          Authorization: `Bearer ${getToken()}`,
         },
         body: JSON.stringify({
           amount_cents: cents,
-          method: 'cashu'
-        })
+          method: 'cashu',
+        }),
       });
-      
+
       const data = await res.json();
-      
+
       if (data.error) {
         setError(data.error);
         setLoading(false);
@@ -111,15 +111,18 @@ export default function MerchantScreen({ onBack, setScreen, setCartOpen }) {
       setPaymentRequest(data);
       setView('payment');
       setLoading(false);
-      
+
       // Poll for payment status
       const pollInterval = setInterval(async () => {
         try {
-          const statusRes = await fetch(`${API_URL}/merchant/payment-request/${data.quote_id || data.invoice_id}`, {
-            headers: { 'Authorization': `Bearer ${getToken()}` }
-          });
+          const statusRes = await fetch(
+            `${API_URL}/merchant/payment-request/${data.quote_id || data.invoice_id}`,
+            {
+              headers: { Authorization: `Bearer ${getToken()}` },
+            }
+          );
           const statusData = await statusRes.json();
-          
+
           if (statusData.paid) {
             setStatus('success');
             clearInterval(pollInterval);
@@ -163,8 +166,20 @@ export default function MerchantScreen({ onBack, setScreen, setCartOpen }) {
 
         {status !== 'success' && (
           <div style={cardStyle}>
-            <p style={{ color: '#666666', fontSize: '12px', marginBottom: '8px' }}>CASHU TOKEN (NFC)</p>
-            <p style={{ backgroundColor: '#0a0a0a', padding: '12px', borderRadius: '8px', wordBreak: 'break-all', fontSize: '10px', fontFamily: 'monospace', color: '#22c55e' }}>
+            <p style={{ color: '#666666', fontSize: '12px', marginBottom: '8px' }}>
+              CASHU TOKEN (NFC)
+            </p>
+            <p
+              style={{
+                backgroundColor: '#0a0a0a',
+                padding: '12px',
+                borderRadius: '8px',
+                wordBreak: 'break-all',
+                fontSize: '10px',
+                fontFamily: 'monospace',
+                color: '#22c55e',
+              }}
+            >
               {paymentRequest.token || paymentRequest.cashu_token || 'Token wird geladen...'}
             </p>
           </div>
@@ -188,7 +203,10 @@ export default function MerchantScreen({ onBack, setScreen, setCartOpen }) {
         {products.length === 0 ? (
           <div style={cardStyle}>
             <p style={{ textAlign: 'center', color: '#666666' }}>Noch keine Produkte</p>
-            <button style={{ ...buttonSecondaryStyle, marginTop: '16px' }} onClick={() => setView('dashboard')}>
+            <button
+              style={{ ...buttonSecondaryStyle, marginTop: '16px' }}
+              onClick={() => setView('dashboard')}
+            >
               ← Zurück zum Dashboard
             </button>
           </div>
@@ -196,12 +214,18 @@ export default function MerchantScreen({ onBack, setScreen, setCartOpen }) {
           <div style={{ marginBottom: '20px' }}>
             {products.map(product => (
               <div key={product.id} style={{ ...cardStyle, padding: '16px', marginBottom: '12px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                >
                   <div>
                     <p style={{ fontWeight: '600', color: '#ffffff' }}>{product.name}</p>
-                    <p style={{ fontSize: '14px', color: '#666666' }}>{product.description || 'Keine Beschreibung'}</p>
+                    <p style={{ fontSize: '14px', color: '#666666' }}>
+                      {product.description || 'Keine Beschreibung'}
+                    </p>
                   </div>
-                  <p style={{ fontSize: '20px', fontWeight: 'bold', color: '#f7931a' }}>{product.price_cents / 100}€</p>
+                  <p style={{ fontSize: '20px', fontWeight: 'bold', color: '#f7931a' }}>
+                    {product.price_cents / 100}€
+                  </p>
                 </div>
               </div>
             ))}
@@ -219,14 +243,18 @@ export default function MerchantScreen({ onBack, setScreen, setCartOpen }) {
   return (
     <div style={{ padding: '20px', paddingBottom: '100px' }}>
       {/* Quick Payment Section */}
-      <h3 style={{ fontSize: '14px', fontWeight: '600', color: '#ffffff', marginBottom: '8px' }}>Schnellzahlung</h3>
-      <p style={{ color: '#666666', fontSize: '14px', marginBottom: '16px' }}>Erstelle eine QR-Code Zahlung</p>
-      
+      <h3 style={{ fontSize: '14px', fontWeight: '600', color: '#ffffff', marginBottom: '8px' }}>
+        Schnellzahlung
+      </h3>
+      <p style={{ color: '#666666', fontSize: '14px', marginBottom: '16px' }}>
+        Erstelle eine QR-Code Zahlung
+      </p>
+
       <div style={cardStyle}>
         <input
           type="number"
           value={amount}
-          onChange={(e) => setAmount(e.target.value)}
+          onChange={e => setAmount(e.target.value)}
           placeholder="0.00"
           style={{
             width: '100%',
@@ -238,37 +266,47 @@ export default function MerchantScreen({ onBack, setScreen, setCartOpen }) {
             border: '1px solid #333333',
             borderRadius: '12px',
             color: '#ffffff',
-            outline: 'none'
+            outline: 'none',
           }}
         />
         <p style={{ textAlign: 'center', color: '#666666', marginTop: '8px' }}>€</p>
       </div>
 
       {/* Quick Amounts */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '20px' }}>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: '8px',
+          marginBottom: '20px',
+        }}
+      >
         {[5, 10, 20, 50, 100, 200].map(amt => (
-          <button
-            key={amt}
-            onClick={() => setAmount(amt.toString())}
-            style={quickAmountStyle}
-          >
+          <button key={amt} onClick={() => setAmount(amt.toString())} style={quickAmountStyle}>
             {amt}€
           </button>
         ))}
       </div>
 
       {error && (
-        <div style={{ padding: '12px', backgroundColor: '#7f1d1d', borderRadius: '12px', marginBottom: '16px' }}>
+        <div
+          style={{
+            padding: '12px',
+            backgroundColor: '#7f1d1d',
+            borderRadius: '12px',
+            marginBottom: '16px',
+          }}
+        >
           <p style={{ color: '#fca5a5', fontSize: '14px' }}>{error}</p>
         </div>
       )}
 
-      <button 
-        onClick={handlePayment} 
+      <button
+        onClick={handlePayment}
         disabled={!amount || loading}
         style={{
           ...buttonStyle,
-          opacity: !amount || loading ? 0.5 : 1
+          opacity: !amount || loading ? 0.5 : 1,
         }}
       >
         {loading ? '⏳ Wird erstellt...' : '📱 QR-Code erstellen'}
@@ -276,30 +314,48 @@ export default function MerchantScreen({ onBack, setScreen, setCartOpen }) {
 
       {/* Navigation Cards */}
       <div style={{ marginTop: '24px' }}>
-        <h3 style={{ fontSize: '14px', fontWeight: '600', color: '#ffffff', marginBottom: '8px' }}>Verwaltung</h3>
-        
+        <h3 style={{ fontSize: '14px', fontWeight: '600', color: '#ffffff', marginBottom: '8px' }}>
+          Verwaltung
+        </h3>
+
         <button
           onClick={() => setView('products')}
-          style={{ ...cardStyle, cursor: 'pointer', textAlign: 'left', width: '100%', marginBottom: '12px' }}
+          style={{
+            ...cardStyle,
+            cursor: 'pointer',
+            textAlign: 'left',
+            width: '100%',
+            marginBottom: '12px',
+          }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <span style={{ fontSize: '24px' }}>🛍️</span>
             <div>
               <div style={{ fontWeight: '600', color: '#ffffff' }}>Produkte verwalten</div>
-              <div style={{ fontSize: '12px', color: '#666666' }}>{products.length} Produkte • Produkte hinzufügen & bearbeiten</div>
+              <div style={{ fontSize: '12px', color: '#666666' }}>
+                {products.length} Produkte • Produkte hinzufügen & bearbeiten
+              </div>
             </div>
           </div>
         </button>
 
         <button
           onClick={() => {}}
-          style={{ ...cardStyle, cursor: 'pointer', textAlign: 'left', width: '100%', marginBottom: '12px' }}
+          style={{
+            ...cardStyle,
+            cursor: 'pointer',
+            textAlign: 'left',
+            width: '100%',
+            marginBottom: '12px',
+          }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <span style={{ fontSize: '24px' }}>📊</span>
             <div>
               <div style={{ fontWeight: '600', color: '#ffffff' }}>Bestellungen</div>
-              <div style={{ fontSize: '12px', color: '#666666' }}>{orders.length} Bestellungen • Verkaufshistorie ansehen</div>
+              <div style={{ fontSize: '12px', color: '#666666' }}>
+                {orders.length} Bestellungen • Verkaufshistorie ansehen
+              </div>
             </div>
           </div>
         </button>
@@ -312,7 +368,9 @@ export default function MerchantScreen({ onBack, setScreen, setCartOpen }) {
             <span style={{ fontSize: '24px' }}>⚙️</span>
             <div>
               <div style={{ fontWeight: '600', color: '#ffffff' }}>Einstellungen</div>
-              <div style={{ fontSize: '12px', color: '#666666' }}>Shop-Name, Zahlungsoptionen, NFC</div>
+              <div style={{ fontSize: '12px', color: '#666666' }}>
+                Shop-Name, Zahlungsoptionen, NFC
+              </div>
             </div>
           </div>
         </button>
