@@ -1,0 +1,7 @@
+flow_state:
+  completed: []
+  current_skill: null
+project:
+  language: auto-detect
+  name: zapout-mvp
+  type: auto-detect

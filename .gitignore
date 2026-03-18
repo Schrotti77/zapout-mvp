@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Environment
+.env
+*.env
+
+# Database
+*.db
+*.sqlite
+
+# Build outputs
+dist/
+build/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Test coverage
+coverage/
+htmlcov/
+
+# Virtual environments
+venv/
+env/
+.venv/
+
+# Local config
+.local/
+*.local
+
+# Misc
+test-results/
+playwright-report/
