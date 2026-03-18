@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useWebSocket } from '../hooks/useWebSocket';
 
 const API_URL = 'http://localhost:8000';
 
@@ -56,6 +57,30 @@ export default function MerchantScreen({ onBack, setScreen, setCartOpen }) {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [orders, setOrders] = useState([]);
+  const [wsConnected, setWsConnected] = useState(false);
+
+  // WebSocket URL for payment updates (NUT-17)
+  const wsUrl = paymentRequest?.quote_id
+    ? `ws://localhost:8000/ws/payments/${paymentRequest.quote_id}`
+    : null;
+
+  // WebSocket for real-time payment status
+  const { isConnected } = useWebSocket(wsUrl, {
+    enabled: view === 'payment' && !!wsUrl && status === 'pending',
+    onMessage: data => {
+      console.log('[WS] Merchant payment update:', data);
+
+      if (data.type === 'status_update' && data.status === 'paid') {
+        setStatus('success');
+      } else if (data.type === 'timeout' || data.type === 'expired') {
+        setStatus('expired');
+      } else if (data.type === 'connected') {
+        setWsConnected(true);
+      }
+    },
+    onConnect: () => setWsConnected(true),
+    onDisconnect: () => setWsConnected(false),
+  });
 
   const getToken = () => localStorage.getItem('zapout_token');
 
@@ -110,30 +135,11 @@ export default function MerchantScreen({ onBack, setScreen, setCartOpen }) {
 
       setPaymentRequest(data);
       setView('payment');
+      setStatus('pending');
       setLoading(false);
+      setWsConnected(false);
 
-      // Poll for payment status
-      const pollInterval = setInterval(async () => {
-        try {
-          const statusRes = await fetch(
-            `${API_URL}/merchant/payment-request/${data.quote_id || data.invoice_id}`,
-            {
-              headers: { Authorization: `Bearer ${getToken()}` },
-            }
-          );
-          const statusData = await statusRes.json();
-
-          if (statusData.paid) {
-            setStatus('success');
-            clearInterval(pollInterval);
-          }
-        } catch (e) {
-          console.error('Poll error:', e);
-        }
-      }, 3000);
-
-      // Stop polling after 2 minutes
-      setTimeout(() => clearInterval(pollInterval), 120000);
+      // WebSocket will handle payment status updates automatically
     } catch (e) {
       setError('Fehler: ' + e.message);
       setLoading(false);
@@ -160,7 +166,11 @@ export default function MerchantScreen({ onBack, setScreen, setCartOpen }) {
             {status === 'success' ? 'Zahlung erhalten!' : `Zahlung: ${amount}€`}
           </p>
           <p style={{ fontSize: '14px', color: '#666666', marginTop: '8px' }}>
-            {status === 'success' ? 'Cashu Token empfangen' : 'Warte auf Zahlung...'}
+            {status === 'success'
+              ? 'Cashu Token empfangen'
+              : wsConnected
+                ? '🔔 Echtzeit-Updates aktiv'
+                : 'Warte auf Zahlung...'}
           </p>
         </div>
 
