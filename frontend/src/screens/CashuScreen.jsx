@@ -15,7 +15,15 @@ const quickAmountStyle = {
   cursor: 'pointer',
 };
 
-function CashuScreen({ token, cashuBal, setCashuBal, selectedMint, setSelectedMint, onBack }) {
+function CashuScreen({
+  token,
+  cashuBal,
+  setCashuBal,
+  selectedMint,
+  setSelectedMint,
+  setScreen,
+  onBack,
+}) {
   const [customCashuAmount, setCustomCashuAmount] = useState('');
   const [cashuQuote, setCashuQuote] = useState(null);
   const [generatedToken, setGeneratedToken] = useState(null);
@@ -100,7 +108,7 @@ function CashuScreen({ token, cashuBal, setCashuBal, selectedMint, setSelectedMi
   };
 
   return (
-    <Layout title="🪙 Cashu" screen="cashu" setScreen={() => {}} onBack={onBack}>
+    <Layout title="🪙 Cashu" screen="cashu" setScreen={setScreen} onBack={onBack}>
       {/* Balance */}
       <div
         style={{

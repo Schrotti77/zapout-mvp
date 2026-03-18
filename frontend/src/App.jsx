@@ -455,6 +455,7 @@ function App() {
         setCashuBal={setCashuBal}
         selectedMint={selectedMint}
         setSelectedMint={setSelectedMint}
+        setScreen={setScreen}
         onBack={() => setScreen('dashboard')}
       />
     );
