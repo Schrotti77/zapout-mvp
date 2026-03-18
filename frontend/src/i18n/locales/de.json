@@ -1,0 +1,146 @@
+{
+  "app": {
+    "name": "ZapOut",
+    "tagline": "Bitcoin Payments"
+  },
+  "nav": {
+    "home": "Home",
+    "cashu": "Cashu",
+    "merchant": "Händler",
+    "products": "Produkte",
+    "swap": "Tauschen",
+    "settings": "Einstellungen"
+  },
+  "auth": {
+    "login": "Anmelden",
+    "register": "Registrieren",
+    "email": "E-Mail",
+    "password": "Passwort",
+    "logout": "Abmelden",
+    "noAccount": "Noch kein Konto?",
+    "hasAccount": "Bereits ein Konto?",
+    "loginSuccess": "Erfolgreich angemeldet!",
+    "loginError": "Anmeldung fehlgeschlagen",
+    "registerSuccess": "Konto erstellt!",
+    "registerError": "Registrierung fehlgeschlagen"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "balance": "Saldo",
+    "sats": "sats",
+    "quickPay": "Schnellzahlung",
+    "recentTransactions": "Letzte Transaktionen",
+    "noTransactions": "Keine Transaktionen"
+  },
+  "cashu": {
+    "title": "Cashu",
+    "balance": "Balance",
+    "mint": "Mint generieren",
+    "mintDescription": "Zahle mit Lightning und erhalte Cashu Tokens",
+    "selectMint": "Mint auswählen",
+    "receive": "Token einlösen",
+    "verify": "Prüfen (NUT-07)",
+    "scanQR": "QR-Code scannen",
+    "showQR": "QR-Code anzeigen",
+    "shareToken": "Token teilen",
+    "tokenPlaceholder": "Cashu Token hier einfügen...",
+    "tokenValid": "Token ist gültig",
+    "tokenInvalid": "Token ist ungültig oder bereits eingelöst",
+    "invoiceReady": "Invoice bereit - bezahle um Cashu zu erhalten",
+    "tokenReceived": "Token erfolgreich eingelöst!",
+    "whatIsCashu": "Was ist Cashu?",
+    "cashuInfo": "Digitale Bargeld-Tokens für Bitcoin Lightning. Privates, dezentrales digitales Bargeld."
+  },
+  "merchant": {
+    "title": "Händler-Bereich",
+    "requestPayment": "Zahlung anfordern",
+    "amount": "Betrag",
+    "amountSats": "Betrag (Sats)",
+    "description": "Beschreibung",
+    "createInvoice": "Invoice erstellen",
+    "paymentRequest": "Zahlungsanfrage",
+    "pendingPayments": "Ausstehende Zahlungen",
+    "noPending": "Keine ausstehenden Zahlungen"
+  },
+  "products": {
+    "title": "Produkte",
+    "addProduct": "Produkt hinzufügen",
+    "name": "Name",
+    "price": "Preis",
+    "category": "Kategorie",
+    "active": "Aktiv",
+    "edit": "Bearbeiten",
+    "delete": "Löschen",
+    "noProducts": "Keine Produkte vorhanden"
+  },
+  "swap": {
+    "title": "Tauschen",
+    "from": "Von",
+    "to": "Zu",
+    "amount": "Betrag",
+    "amountSats": "Sats",
+    "amountEur": "EUR",
+    "price": "Preis",
+    "fee": "Gebühr",
+    "total": "Gesamt",
+    "execute": "Tausch ausführen",
+    "swapping": "Tausche..."
+  },
+  "settings": {
+    "title": "Einstellungen",
+    "account": "Konto",
+    "memberSince": "Mitglied seit",
+    "lightning": "Lightning Node",
+    "connected": "Verbunden",
+    "disconnected": "Nicht verbunden",
+    "cashuWallet": "Cashu Wallet",
+    "payments": "Zahlungen",
+    "totalPayments": "Gesamt",
+    "pendingPayments": "Ausstehend",
+    "completedPayments": "Abgeschlossen",
+    "about": "Über ZapOut",
+    "version": "Version",
+    "backendUrl": "Backend URL",
+    "userId": "User ID",
+    "security": "Sicherheit",
+    "changePassword": "Passwort ändern",
+    "deleteAccount": "Konto löschen",
+    "language": "Sprache",
+    "german": "Deutsch",
+    "english": "Englisch"
+  },
+  "cart": {
+    "title": "Warenkorb",
+    "checkout": "Zur Kasse",
+    "empty": "Warenkorb ist leer",
+    "total": "Gesamt",
+    "pay": "Zahlungspflichtig bestellen"
+  },
+  "payment": {
+    "title": "Zahlung",
+    "invoice": "Lightning Invoice",
+    "scanToPay": "Scannen zum Bezahlen",
+    "waiting": "Warte auf Zahlung...",
+    "success": "Zahlung erfolgreich!",
+    "expired": "Invoice abgelaufen",
+    "liveConversion": "Live-Umrechnung",
+    "sats": "Sats"
+  },
+  "common": {
+    "loading": "Laden...",
+    "error": "Fehler",
+    "success": "Erfolg",
+    "cancel": "Abbrechen",
+    "confirm": "Bestätigen",
+    "close": "Schließen",
+    "back": "Zurück",
+    "save": "Speichern",
+    "send": "Senden"
+  },
+  "errors": {
+    "network": "Netzwerkfehler",
+    "server": "Serverfehler",
+    "invalidAmount": "Ungültiger Betrag",
+    "notAuthenticated": "Nicht angemeldet"
+  }
+}

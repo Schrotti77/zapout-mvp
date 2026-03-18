@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import CartDrawer from '../components/CartDrawer';
+import { useTranslation } from 'react-i18next';
 
 const API_URL = 'http://localhost:8000';
 
@@ -28,6 +29,7 @@ const btnPrimary = {
 };
 
 function AuthScreen({ mode, setScreen, onAuthSuccess }) {
+  const { t } = useTranslation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -36,7 +38,7 @@ function AuthScreen({ mode, setScreen, onAuthSuccess }) {
 
   const handleSubmit = async () => {
     if (!email || !password) {
-      setError('Bitte E-Mail und Passwort eingeben');
+      setError(t('auth.email') + ' & ' + t('auth.password') + ' erforderlich');
       return;
     }
 
@@ -52,10 +54,10 @@ function AuthScreen({ mode, setScreen, onAuthSuccess }) {
         localStorage.setItem('zapout_token', data.token);
         onAuthSuccess(data.token);
       } else {
-        setError(data.error || 'Authentifizierung fehlgeschlagen');
+        setError(data.error || t('auth.loginError'));
       }
     } catch (e) {
-      setError('Verbindungsfehler: ' + e.message);
+      setError(t('errors.network') + ': ' + e.message);
     }
   };
 
@@ -80,15 +82,15 @@ function AuthScreen({ mode, setScreen, onAuthSuccess }) {
             WebkitTextFillColor: 'transparent',
           }}
         >
-          ZapOut
+          {t('app.name')}
         </h1>
         {isRegister && (
-          <p style={{ color: '#666666', fontSize: '14px', marginTop: '4px' }}>Bitcoin Payments</p>
+          <p style={{ color: '#666666', fontSize: '14px', marginTop: '4px' }}>{t('app.tagline')}</p>
         )}
       </header>
       <main style={{ maxWidth: '400px', margin: '0 auto' }}>
         <h2 style={{ color: '#ffffff', marginBottom: '20px' }}>
-          {isRegister ? 'Registrieren' : 'Login'}
+          {isRegister ? t('auth.register') : t('auth.login')}
         </h2>
 
         {error && (
@@ -108,7 +110,7 @@ function AuthScreen({ mode, setScreen, onAuthSuccess }) {
 
         <input
           style={inputStyle}
-          placeholder="E-Mail"
+          placeholder={t('auth.email')}
           type="email"
           value={email}
           onChange={e => {
@@ -119,7 +121,7 @@ function AuthScreen({ mode, setScreen, onAuthSuccess }) {
         <input
           style={{ ...inputStyle, marginTop: '12px' }}
           type="password"
-          placeholder="Passwort"
+          placeholder={t('auth.password')}
           value={password}
           onChange={e => {
             setPassword(e.target.value);
@@ -128,28 +130,28 @@ function AuthScreen({ mode, setScreen, onAuthSuccess }) {
           onKeyDown={e => e.key === 'Enter' && handleSubmit()}
         />
         <button style={{ ...btnPrimary, marginTop: '20px' }} onClick={handleSubmit}>
-          {isRegister ? 'Konto erstellen' : 'Login'}
+          {isRegister ? t('auth.register') : t('auth.login')}
         </button>
 
         <p style={{ textAlign: 'center', marginTop: '16px', color: '#666666' }}>
           {isRegister ? (
             <>
-              Oder{' '}
+              {t('auth.hasAccount')}{' '}
               <span
                 style={{ color: '#f7931a', cursor: 'pointer' }}
                 onClick={() => setScreen('login')}
               >
-                Login
+                {t('auth.login')}
               </span>
             </>
           ) : (
             <>
-              Noch kein Konto?{' '}
+              {t('auth.noAccount')}{' '}
               <span
                 style={{ color: '#f7931a', cursor: 'pointer' }}
                 onClick={() => setScreen('register')}
               >
-                Registrieren
+                {t('auth.register')}
               </span>
             </>
           )}

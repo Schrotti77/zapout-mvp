@@ -1,8 +1,20 @@
 import React from 'react';
 import CartDrawer from '../CartDrawer';
+import { useTranslation } from 'react-i18next';
 
 // Consistent Layout for all screens - Dark Bitcoin Theme
 const Layout = ({ children, title, screen, setScreen, cartOpen, setCartOpen, showNav = true }) => {
+  const { t } = useTranslation();
+
+  const navItems = [
+    { screen: 'dashboard', icon: '💰', label: t('nav.home') },
+    { screen: 'cashu', icon: '🪙', label: t('nav.cashu') },
+    { screen: 'swap', icon: '⚡', label: t('nav.swap') },
+    { screen: 'merchant', icon: '🏪', label: t('nav.merchant') },
+    { screen: 'products', icon: '🛍️', label: t('nav.products') },
+    { screen: 'settings', icon: '⚙️', label: t('nav.settings') },
+  ];
+
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#0a0a0a' }}>
       {/* Header */}
@@ -59,43 +71,16 @@ const Layout = ({ children, title, screen, setScreen, cartOpen, setCartOpen, sho
             zIndex: 50,
           }}
         >
-          <NavButton
-            icon="💰"
-            label="Zahlen"
-            active={screen === 'dashboard'}
-            onClick={() => setScreen('dashboard')}
-          />
-          <NavButton
-            icon="🪙"
-            label="Cashu"
-            active={screen === 'cashu'}
-            onClick={() => setScreen('cashu')}
-          />
-          <NavButton
-            icon="⚡"
-            label="Swap"
-            active={screen === 'swap'}
-            onClick={() => setScreen('swap')}
-          />
-          <NavButton
-            icon="🏪"
-            label="Händler"
-            active={screen === 'merchant'}
-            onClick={() => setScreen('merchant')}
-          />
-          <NavButton
-            icon="🛍️"
-            label="Produkte"
-            active={screen === 'products'}
-            onClick={() => setScreen('products')}
-          />
-          <NavButton
-            icon="⚙️"
-            label="Einst."
-            active={screen === 'settings'}
-            onClick={() => setScreen('settings')}
-          />
-          <NavButton icon="🛒" label="Warenkorb" onClick={() => setCartOpen(true)} />
+          {navItems.map(item => (
+            <NavButton
+              key={item.screen}
+              icon={item.icon}
+              label={item.label}
+              active={screen === item.screen}
+              onClick={() => setScreen(item.screen)}
+            />
+          ))}
+          <NavButton icon="🛒" label={t('cart.title')} onClick={() => setCartOpen(true)} />
         </nav>
       )}
 

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 
 const API_URL = 'http://localhost:8000';
 
@@ -72,6 +73,7 @@ const dangerButtonStyle = {
 };
 
 export default function SettingsScreen({ onBack }) {
+  const { t, i18n } = useTranslation();
   const [user, setUser] = useState(null);
   const [cashuInfo, setCashuInfo] = useState(null);
   const [cashuBalance, setCashuBalance] = useState(0);
@@ -145,6 +147,11 @@ export default function SettingsScreen({ onBack }) {
   const pendingPayments = payments.filter(p => p.status === 'pending').length;
   const completedPayments = payments.filter(p => p.status === 'completed').length;
 
+  const changeLanguage = lng => {
+    i18n.changeLanguage(lng);
+    localStorage.setItem('i18nextLng', lng);
+  };
+
   if (loading) {
     return <div style={{ color: '#888888', textAlign: 'center', padding: '40px' }}>Lade...</div>;
   }
@@ -155,12 +162,51 @@ export default function SettingsScreen({ onBack }) {
 
   return (
     <div style={{ padding: '0 4px' }}>
+      {/* Language Section */}
+      <div style={cardStyle}>
+        <div style={sectionTitleStyle}>{t('settings.language')}</div>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button
+            onClick={() => changeLanguage('de')}
+            style={{
+              flex: 1,
+              padding: '12px',
+              borderRadius: '8px',
+              border: i18n.language === 'de' ? '2px solid #f7931a' : '1px solid #333',
+              backgroundColor: i18n.language === 'de' ? '#1a1a1a' : '#0a0a0a',
+              color: i18n.language === 'de' ? '#f7931a' : '#666',
+              fontSize: '14px',
+              fontWeight: i18n.language === 'de' ? '600' : '400',
+              cursor: 'pointer',
+            }}
+          >
+            🇩🇪 {t('settings.german')}
+          </button>
+          <button
+            onClick={() => changeLanguage('en')}
+            style={{
+              flex: 1,
+              padding: '12px',
+              borderRadius: '8px',
+              border: i18n.language === 'en' ? '2px solid #f7931a' : '1px solid #333',
+              backgroundColor: i18n.language === 'en' ? '#1a1a1a' : '#0a0a0a',
+              color: i18n.language === 'en' ? '#f7931a' : '#666',
+              fontSize: '14px',
+              fontWeight: i18n.language === 'en' ? '600' : '400',
+              cursor: 'pointer',
+            }}
+          >
+            🇬🇧 {t('settings.english')}
+          </button>
+        </div>
+      </div>
+
       {/* Account Section */}
       <div style={cardStyle}>
-        <div style={sectionTitleStyle}>Konto</div>
+        <div style={sectionTitleStyle}>{t('settings.account')}</div>
 
         <div style={{ marginBottom: '16px' }}>
-          <div style={labelStyle}>E-Mail</div>
+          <div style={labelStyle}>{t('auth.email')}</div>
           <div style={valueStyle}>{user?.email || 'N/A'}</div>
         </div>
 
@@ -170,14 +216,14 @@ export default function SettingsScreen({ onBack }) {
         </div>
 
         <div>
-          <div style={labelStyle}>Mitglied seit</div>
+          <div style={labelStyle}>{t('settings.memberSince')}</div>
           <div style={valueStyle}>{formatDate(user?.created_at)}</div>
         </div>
       </div>
 
       {/* Lightning Node Section */}
       <div style={cardStyle}>
-        <div style={sectionTitleStyle}>⚡ Lightning Node</div>
+        <div style={sectionTitleStyle}>⚡ {t('settings.lightning')}</div>
 
         <div
           style={{
@@ -198,7 +244,7 @@ export default function SettingsScreen({ onBack }) {
                   backgroundColor: lightningStatus?.connected ? '#22c55e' : '#ef4444',
                 }}
               ></span>
-              {lightningStatus?.connected ? 'Verbunden' : 'Nicht verbunden'}
+              {lightningStatus?.connected ? t('settings.connected') : t('settings.disconnected')}
             </div>
           </div>
           <div style={{ textAlign: 'right' }}>
@@ -217,11 +263,13 @@ export default function SettingsScreen({ onBack }) {
 
       {/* Cashu Section */}
       <div style={cardStyle}>
-        <div style={sectionTitleStyle}>🪙 Cashu Wallet</div>
+        <div style={sectionTitleStyle}>🪙 {t('settings.cashuWallet')}</div>
 
         <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
           <div style={statBoxStyle}>
-            <div style={{ color: '#888888', fontSize: '11px', marginBottom: '4px' }}>Balance</div>
+            <div style={{ color: '#888888', fontSize: '11px', marginBottom: '4px' }}>
+              {t('cashu.balance')}
+            </div>
             <div style={{ color: '#f7931a', fontSize: '20px', fontWeight: '700' }}>
               {cashuBalance.toLocaleString()}
             </div>
@@ -260,18 +308,20 @@ export default function SettingsScreen({ onBack }) {
 
       {/* Payment Stats Section */}
       <div style={cardStyle}>
-        <div style={sectionTitleStyle}>📊 Zahlungen</div>
+        <div style={sectionTitleStyle}>📊 {t('settings.payments')}</div>
 
         <div style={{ display: 'flex', gap: '12px' }}>
           <div style={statBoxStyle}>
-            <div style={{ color: '#888888', fontSize: '11px', marginBottom: '4px' }}>Gesamt</div>
+            <div style={{ color: '#888888', fontSize: '11px', marginBottom: '4px' }}>
+              {t('settings.totalPayments')}
+            </div>
             <div style={{ color: '#ffffff', fontSize: '20px', fontWeight: '700' }}>
               {payments.length}
             </div>
           </div>
           <div style={statBoxStyle}>
             <div style={{ color: '#888888', fontSize: '11px', marginBottom: '4px' }}>
-              Ausstehend
+              {t('settings.pendingPayments')}
             </div>
             <div style={{ color: '#eab308', fontSize: '20px', fontWeight: '700' }}>
               {pendingPayments}
@@ -279,7 +329,7 @@ export default function SettingsScreen({ onBack }) {
           </div>
           <div style={statBoxStyle}>
             <div style={{ color: '#888888', fontSize: '11px', marginBottom: '4px' }}>
-              Abgeschlossen
+              {t('settings.completedPayments')}
             </div>
             <div style={{ color: '#22c55e', fontSize: '20px', fontWeight: '700' }}>
               {completedPayments}
@@ -290,20 +340,20 @@ export default function SettingsScreen({ onBack }) {
 
       {/* App Info Section */}
       <div style={cardStyle}>
-        <div style={sectionTitleStyle}>ℹ️ Über ZapOut</div>
+        <div style={sectionTitleStyle}>ℹ️ {t('settings.about')}</div>
 
         <div style={{ marginBottom: '12px' }}>
-          <div style={labelStyle}>Version</div>
+          <div style={labelStyle}>{t('settings.version')}</div>
           <div style={valueStyle}>1.0.0-beta</div>
         </div>
 
         <div style={{ marginBottom: '12px' }}>
-          <div style={labelStyle}>Backend</div>
+          <div style={labelStyle}>{t('settings.backendUrl')}</div>
           <div style={valueStyle}>{API_URL}</div>
         </div>
 
         <div>
-          <div style={labelStyle}>User ID</div>
+          <div style={labelStyle}>{t('settings.userId')}</div>
           <div style={{ color: '#666666', fontSize: '13px', fontFamily: 'monospace' }}>
             #{user?.id || 'N/A'}
           </div>
@@ -312,7 +362,7 @@ export default function SettingsScreen({ onBack }) {
 
       {/* Danger Zone */}
       <div style={{ ...cardStyle, borderColor: '#ef444433' }}>
-        <div style={sectionTitleStyle}>🔒 Sicherheit</div>
+        <div style={sectionTitleStyle}>🔒 {t('settings.security')}</div>
 
         <div style={{ marginBottom: '12px' }}>
           <div style={labelStyle}>Passwort</div>
@@ -320,7 +370,7 @@ export default function SettingsScreen({ onBack }) {
         </div>
 
         <button style={dangerButtonStyle} onClick={() => alert('Coming soon: Passwort ändern')}>
-          Passwort ändern
+          {t('settings.changePassword')}
         </button>
 
         <button
@@ -332,7 +382,7 @@ export default function SettingsScreen({ onBack }) {
           }}
           onClick={() => alert('Kontaktiere den Support um dein Konto zu löschen')}
         >
-          Konto löschen
+          {t('settings.deleteAccount')}
         </button>
       </div>
 
@@ -356,7 +406,7 @@ export default function SettingsScreen({ onBack }) {
           window.location.reload();
         }}
       >
-        Abmelden
+        {t('auth.logout')}
       </button>
     </div>
   );

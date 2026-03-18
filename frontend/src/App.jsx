@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import './i18n';
 import MerchantScreen from './screens/MerchantScreen';
 import SwapScreen from './screens/SwapScreen';
 import Products from './screens/Products';
@@ -8,11 +9,13 @@ import DashboardScreen from './screens/DashboardScreen';
 import AuthScreen from './screens/AuthScreen';
 import CartDrawer from './components/CartDrawer';
 import Layout, { ScreenCard, PageTitle, SectionTitle } from './components/ui/Layout';
+import { useTranslation } from 'react-i18next';
 import { proofStorage, txHistory } from './services/cashu';
 
 const API_URL = 'http://localhost:8000';
 
 function App() {
+  const { t } = useTranslation();
   const [screen, setScreen] = useState('register');
   const [token, setToken] = useState(localStorage.getItem('zapout_token'));
   const [payments, setPayments] = useState([]);
@@ -118,7 +121,7 @@ function App() {
   if (screen === 'settings') {
     return (
       <Layout
-        title="⚙️ Einstellungen"
+        title={t('settings.title')}
         screen={screen}
         setScreen={setScreen}
         cartOpen={cartOpen}
@@ -133,7 +136,7 @@ function App() {
   if (screen === 'merchant') {
     return (
       <Layout
-        title="🏪 Händler"
+        title={t('merchant.title')}
         screen={screen}
         setScreen={setScreen}
         cartOpen={cartOpen}
@@ -148,7 +151,7 @@ function App() {
   if (screen === 'swap') {
     return (
       <Layout
-        title="⚡ Swap"
+        title={t('swap.title')}
         screen={screen}
         setScreen={setScreen}
         cartOpen={cartOpen}
@@ -163,7 +166,7 @@ function App() {
   if (screen === 'products') {
     return (
       <Layout
-        title="🛍️ Produkte"
+        title={t('products.title')}
         screen={screen}
         setScreen={setScreen}
         cartOpen={cartOpen}
