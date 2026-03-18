@@ -1,0 +1,146 @@
+{
+  "app": {
+    "name": "ZapOut",
+    "tagline": "Bitcoin Payments"
+  },
+  "nav": {
+    "home": "Home",
+    "cashu": "Cashu",
+    "merchant": "Merchant",
+    "products": "Products",
+    "swap": "Swap",
+    "settings": "Settings"
+  },
+  "auth": {
+    "login": "Login",
+    "register": "Register",
+    "email": "Email",
+    "password": "Password",
+    "logout": "Logout",
+    "noAccount": "Don't have an account?",
+    "hasAccount": "Already have an account?",
+    "loginSuccess": "Successfully logged in!",
+    "loginError": "Login failed",
+    "registerSuccess": "Account created!",
+    "registerError": "Registration failed"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "balance": "Balance",
+    "sats": "sats",
+    "quickPay": "Quick Pay",
+    "recentTransactions": "Recent Transactions",
+    "noTransactions": "No transactions"
+  },
+  "cashu": {
+    "title": "Cashu",
+    "balance": "Balance",
+    "mint": "Generate Mint",
+    "mintDescription": "Pay with Lightning and receive Cashu tokens",
+    "selectMint": "Select Mint",
+    "receive": "Redeem Token",
+    "verify": "Verify (NUT-07)",
+    "scanQR": "Scan QR Code",
+    "showQR": "Show QR Code",
+    "shareToken": "Share Token",
+    "tokenPlaceholder": "Paste Cashu token here...",
+    "tokenValid": "Token is valid",
+    "tokenInvalid": "Token is invalid or already redeemed",
+    "invoiceReady": "Invoice ready - pay to receive Cashu",
+    "tokenReceived": "Token redeemed successfully!",
+    "whatIsCashu": "What is Cashu?",
+    "cashuInfo": "Digital cash tokens for Bitcoin Lightning. Private, decentralized digital cash."
+  },
+  "merchant": {
+    "title": "Merchant Area",
+    "requestPayment": "Request Payment",
+    "amount": "Amount",
+    "amountSats": "Amount (Sats)",
+    "description": "Description",
+    "createInvoice": "Create Invoice",
+    "paymentRequest": "Payment Request",
+    "pendingPayments": "Pending Payments",
+    "noPending": "No pending payments"
+  },
+  "products": {
+    "title": "Products",
+    "addProduct": "Add Product",
+    "name": "Name",
+    "price": "Price",
+    "category": "Category",
+    "active": "Active",
+    "edit": "Edit",
+    "delete": "Delete",
+    "noProducts": "No products"
+  },
+  "swap": {
+    "title": "Swap",
+    "from": "From",
+    "to": "To",
+    "amount": "Amount",
+    "amountSats": "Sats",
+    "amountEur": "EUR",
+    "price": "Price",
+    "fee": "Fee",
+    "total": "Total",
+    "execute": "Execute Swap",
+    "swapping": "Swapping..."
+  },
+  "settings": {
+    "title": "Settings",
+    "account": "Account",
+    "memberSince": "Member since",
+    "lightning": "Lightning Node",
+    "connected": "Connected",
+    "disconnected": "Disconnected",
+    "cashuWallet": "Cashu Wallet",
+    "payments": "Payments",
+    "totalPayments": "Total",
+    "pendingPayments": "Pending",
+    "completedPayments": "Completed",
+    "about": "About ZapOut",
+    "version": "Version",
+    "backendUrl": "Backend URL",
+    "userId": "User ID",
+    "security": "Security",
+    "changePassword": "Change Password",
+    "deleteAccount": "Delete Account",
+    "language": "Language",
+    "german": "German",
+    "english": "English"
+  },
+  "cart": {
+    "title": "Cart",
+    "checkout": "Checkout",
+    "empty": "Cart is empty",
+    "total": "Total",
+    "pay": "Pay and Order"
+  },
+  "payment": {
+    "title": "Payment",
+    "invoice": "Lightning Invoice",
+    "scanToPay": "Scan to Pay",
+    "waiting": "Waiting for payment...",
+    "success": "Payment successful!",
+    "expired": "Invoice expired",
+    "liveConversion": "Live Conversion",
+    "sats": "Sats"
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "close": "Close",
+    "back": "Back",
+    "save": "Save",
+    "send": "Send"
+  },
+  "errors": {
+    "network": "Network error",
+    "server": "Server error",
+    "invalidAmount": "Invalid amount",
+    "notAuthenticated": "Not authenticated"
+  }
+}

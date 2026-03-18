@@ -3,6 +3,7 @@ import Layout from '../components/ui/Layout';
 import { proofStorage, txHistory } from '../services/cashu';
 import { QRCodeSVG } from 'qrcode.react';
 import { Html5Qrcode } from 'html5-qrcode';
+import { useTranslation } from 'react-i18next';
 
 const API_URL = 'http://localhost:8000';
 
@@ -26,6 +27,7 @@ function CashuScreen({
   setScreen,
   onBack,
 }) {
+  const { t } = useTranslation();
   const [customCashuAmount, setCustomCashuAmount] = useState('');
   const [cashuQuote, setCashuQuote] = useState(null);
   const [generatedToken, setGeneratedToken] = useState(null);
@@ -105,7 +107,7 @@ function CashuScreen({
         });
         // Clear input and show success
         setTokenInput('');
-        setGeneratedToken('Token erfolgreich eingelöst! Balance aktualisiert.');
+        setGeneratedToken(t('cashu.tokenReceived'));
         setTimeout(() => setGeneratedToken(null), 3000);
       } else {
         setVerifyResult({ error: result.error || 'Einlösen fehlgeschlagen' });
@@ -194,16 +196,18 @@ function CashuScreen({
             letterSpacing: '1px',
           }}
         >
-          Balance
+          {t('cashu.balance')}
         </p>
         <p style={{ color: '#f7931a', fontSize: '36px', fontWeight: 'bold', marginTop: '4px' }}>
-          {cashuBal} sats
+          {cashuBal} {t('dashboard.sats')}
         </p>
       </div>
 
       {/* Multi-Mint Selector */}
       <div style={{ marginBottom: '20px' }}>
-        <p style={{ color: '#666666', fontSize: '12px', marginBottom: '8px' }}>MINT AUSWÄHLEN</p>
+        <p style={{ color: '#666666', fontSize: '12px', marginBottom: '8px' }}>
+          {t('cashu.selectMint').toUpperCase()}
+        </p>
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           {mints.map(mint => (
             <button
@@ -227,10 +231,10 @@ function CashuScreen({
 
       {/* Mint Cashu */}
       <h3 style={{ fontSize: '14px', fontWeight: '600', color: '#ffffff', marginBottom: '8px' }}>
-        Cashu generieren
+        {t('cashu.mint')}
       </h3>
       <p style={{ color: '#666666', fontSize: '14px', marginBottom: '16px' }}>
-        Zahle mit Lightning und erhalte Cashu Tokens
+        {t('cashu.mintDescription')}
       </p>
 
       <div
@@ -290,7 +294,7 @@ function CashuScreen({
           }}
         >
           <p style={{ color: '#666666', fontSize: '12px' }}>
-            Lightning Invoice ({getQuoteSats()} sats)
+            {t('payment.invoice')} ({getQuoteSats()} {t('dashboard.sats')})
           </p>
 
           {/* QR Code Display */}
@@ -306,7 +310,7 @@ function CashuScreen({
                     color: '#22c55e',
                   }}
                 >
-                  📷 QR-Code anzeigen
+                  📷 {t('cashu.showQR')}
                 </button>
               ) : (
                 <div>
@@ -330,7 +334,7 @@ function CashuScreen({
                       fontSize: '12px',
                     }}
                   >
-                    Schließen
+                    {t('common.close')}
                   </button>
                 </div>
               )}
@@ -350,16 +354,16 @@ function CashuScreen({
               color: '#22c55e',
             }}
           >
-            {cashuQuote.error || getInvoiceString() || 'Lädt...'}
+            {cashuQuote.error || getInvoiceString() || t('common.loading')}
           </p>
           {getInvoiceString() && (
             <p style={{ fontSize: '12px', color: '#22c55e', marginTop: '12px' }}>
-              ✓ Invoice bereit - bezahle um Cashu zu erhalten
+              ✓ {t('cashu.invoiceReady')}
             </p>
           )}
           {cashuQuote.error && (
             <p style={{ fontSize: '12px', color: '#ef4444', marginTop: '12px' }}>
-              Fehler: {cashuQuote.error}
+              {t('common.error')}: {cashuQuote.error}
             </p>
           )}
         </div>
@@ -401,7 +405,7 @@ function CashuScreen({
         }}
       >
         <p style={{ color: '#666666', fontSize: '12px', marginBottom: '8px' }}>
-          TOKEN EINLÖSEN / PRÜFEN
+          {t('cashu.receive').toUpperCase()} / {t('cashu.verify').toUpperCase()}
         </p>
 
         {/* QR Scanner */}
@@ -417,7 +421,7 @@ function CashuScreen({
                 color: '#fff',
               }}
             >
-              Scanner schließen
+              {t('common.close')}
             </button>
           </div>
         ) : (
@@ -432,14 +436,14 @@ function CashuScreen({
               width: '100%',
             }}
           >
-            📷 QR-Code scannen
+            📷 {t('cashu.scanQR')}
           </button>
         )}
 
         <textarea
           value={tokenInput}
           onChange={e => setTokenInput(e.target.value)}
-          placeholder="Cashu Token hier einfügen..."
+          placeholder={t('cashu.tokenPlaceholder')}
           style={{
             width: '100%',
             backgroundColor: '#0a0a0a',
@@ -467,7 +471,7 @@ function CashuScreen({
                   color: '#f7931a',
                 }}
               >
-                📷 Token als QR anzeigen
+                📷 {t('cashu.shareToken')}
               </button>
             ) : (
               <div>
@@ -493,7 +497,7 @@ function CashuScreen({
                     width: '100%',
                   }}
                 >
-                  Schließen
+                  {t('common.close')}
                 </button>
               </div>
             )}
@@ -511,13 +515,13 @@ function CashuScreen({
               color: '#f7931a',
             }}
           >
-            ✓ Prüfen (NUT-07)
+            ✓ {t('cashu.verify')}
           </button>
           <button
             onClick={receiveToken}
             style={{ ...quickAmountStyle, flex: 1, backgroundColor: '#f7931a', color: '#000' }}
           >
-            Einlösen
+            {t('cashu.receive')}
           </button>
         </div>
 
@@ -531,20 +535,22 @@ function CashuScreen({
               borderRadius: '8px',
             }}
           >
-            {verifyResult.status === 'loading' && <p style={{ color: '#666' }}>Prüfe Token...</p>}
+            {verifyResult.status === 'loading' && (
+              <p style={{ color: '#666' }}>{t('common.loading')}</p>
+            )}
             {verifyResult.valid !== undefined && (
               <p style={{ color: verifyResult.valid ? '#22c55e' : '#ef4444', fontSize: '14px' }}>
-                {verifyResult.valid
-                  ? '✓ Token ist gültig'
-                  : '✗ Token ist ungültig oder bereits eingelöst'}
+                {verifyResult.valid ? '✓ ' + t('cashu.tokenValid') : '✗ ' + t('cashu.tokenInvalid')}
               </p>
             )}
             {verifyResult.error && (
-              <p style={{ color: '#ef4444', fontSize: '12px' }}>Fehler: {verifyResult.error}</p>
+              <p style={{ color: '#ef4444', fontSize: '12px' }}>
+                {t('common.error')}: {verifyResult.error}
+              </p>
             )}
             {verifyResult.amount && (
               <p style={{ color: '#f7931a', fontSize: '14px' }}>
-                Betrag: {verifyResult.amount} sats
+                {t('swap.amount')}: {verifyResult.amount} {t('dashboard.sats')}
               </p>
             )}
           </div>
@@ -560,9 +566,9 @@ function CashuScreen({
           padding: '20px',
         }}
       >
-        <p style={{ color: '#666666', fontSize: '12px' }}>Was ist Cashu?</p>
+        <p style={{ color: '#666666', fontSize: '12px' }}>{t('cashu.whatIsCashu')}</p>
         <p style={{ color: '#999999', fontSize: '14px', marginTop: '8px' }}>
-          Digitale Bargeld-Tokens für Bitcoin Lightning. Privates, dezentrales digitales Bargeld.
+          {t('cashu.cashuInfo')}
         </p>
       </div>
     </Layout>
