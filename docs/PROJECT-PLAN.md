@@ -117,25 +117,47 @@ User C ──┘                     User C ──► Watch-Only-C (pubkey)
                                └──► Alle → Helmut LND (via Submarine Swap)
 ```
 
-### Phase 3.5: Cashu Management (NEW - 0%)
+### Phase 3.5: Cashu Management (50%)
 
 > **Übernommen von Numo** - Multi-Mint Support und Auto-Swap
+> **Helmut Mint läuft:** `http://100.74.149.69:3338` (cdk-mintd v0.15.0)
 
 | Feature                          | Status | Priority | Quelle |
 | -------------------------------- | ------ | -------- | ------ |
-| **Mint Management**              | ❌     | 🔴 HIGH  | Numo   |
-| **Add/Remove Mints**             | ❌     | 🔴 HIGH  | Numo   |
-| **Preferred Mint Selection**     | ❌     | 🔴 HIGH  | Numo   |
-| **Balance per Mint**             | ❌     | 🟡 MED   | Numo   |
-| **Swap to Lightning (ANY Mint)** | ❌     | 🔴 HIGH  | Numo   |
-| **Accept Unknown Mints Toggle**  | ❌     | 🔴 HIGH  | Numo   |
-| Mint Health Check                | ❌     | 🟡 MED   | -      |
+| **Helmut Mint Setup**            | ✅     | 🔴 HIGH  | -      |
+| **Mint Management UI**           | ✅     | 🔴 HIGH  | -      |
+| **Add/Remove Mints**             | ✅     | 🔴 HIGH  | -      |
+| **Preferred Mint Selection**     | ✅     | 🔴 HIGH  | -      |
+| **Balance per Mint**             | 🔴     | 🟡 MED   | Numo   |
+| **Swap to Lightning (ANY Mint)** | ⚠️     | 🔴 HIGH  | Numo   |
+| **Accept Unknown Mints Toggle**  | ✅     | 🔴 HIGH  | -      |
+| Mint Health Check                | 🔴     | 🟡 MED   | -      |
 
-**Swap to Lightning Flow:**
+**Helmut Mint Status:**
+
+- ✅ cdk-mintd läuft auf Port 3338
+- ✅ LND Backend verbunden (SynapseLN)
+- ✅ Öffentlich erreichbar
+- ⚠️ Noch keine echten Channels für Produktivbetrieb
+- 🔴 Monitoring/Backups fehlen
+
+**Swap to Lightning - Einschränkungen:**
 
 ```
-Customer Token (Mint XYZ) → ZapOut erkennt Mint → Swap zu Lightning → LND Wallet
+Cross-Mint Swap (Token von Mint X → Lightning) erfordert:
+1. Mint X muss Lightning haben + externe Invoices akzeptieren
+2. Die meisten public Mints sind FakeWallet oder offline
+3. Real Swap: NUT-05 Melt mit echter Lightning-Anbindung
 ```
+
+**Swap Optionen:**
+| Option | Beschreibung | Status |
+|--------|--------------|--------|
+| Same-Mint | Nur Helmut Mint akzeptieren | ✅ Jetzt |
+| Melt at Mint | Kunde meltet bei eigener Mint | ⚠️ Komplex |
+| Managed Mint | Wir hosten Mint für Kunden | 💡 Service-Idee |
+
+**→ Siehe:** `docs/HELMUT-MINT.md` für Details + Service-Potential
 
 ### Phase 4: Multi-Device (0%)
 

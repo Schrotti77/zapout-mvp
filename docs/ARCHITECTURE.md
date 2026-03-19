@@ -82,12 +82,21 @@ ZapOut nutzt eine selbst-gehostete Architektur mit Helmut (Umbrel) als Backend-S
 
 ### 2.2 Cashu Multi-Mint Architecture
 
+**Helmut's Cashu Mint (LÄUFT ✅):**
+
+- URL: `http://100.74.149.69:3338`
+- Software: cdk-mintd v0.15.0
+- Backend: Helmut's LND (SynapseLN)
+- Ports: NUT-04, NUT-05, NUT-07, NUT-08, NUT-09, NUT-10, NUT-11, NUT-12, NUT-14, NUT-15, NUT-17, NUT-19, NUT-20
+
 **Im Gegensatz zu Numo:**
 
 - Helmut hat Cashu Mint + LNbits
 - ZapOut kann aber ANY Mint akzeptieren via Swap
 - User kann preferred Mint wählen
 - Auto-Swap zu Lightning bei unbekannten Mints
+
+**→ Details:** Siehe `docs/HELMUT-MINT.md`
 
 ### 2.3 Numo Integration Strategy
 
