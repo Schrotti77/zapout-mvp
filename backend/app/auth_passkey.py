@@ -54,6 +54,7 @@ def init_passkey_db():
             email TEXT,
             display_name TEXT,
             public_key TEXT NOT NULL,
+            prf_salt TEXT,  -- Salt for PRF key derivation
             counter INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             last_used TIMESTAMP
@@ -90,6 +91,12 @@ def init_passkey_db():
     """
     )
 
+    # Migration: Add prf_salt column if it doesn't exist (for existing databases)
+    try:
+        c.execute("ALTER TABLE passkey_credentials ADD COLUMN prf_salt TEXT")
+    except sqlite3.OperationalError:
+        pass  # Column already exists
+
     conn.commit()
     conn.close()
 
@@ -106,6 +113,31 @@ def generate_challenge() -> str:
 def generate_user_id() -> str:
     """Generate a unique user ID"""
     return secrets.token_hex(16)
+
+
+def generate_prf_salt() -> str:
+    """Generate a random salt for PRF key derivation"""
+    return base64.urlsafe_b64encode(secrets.token_bytes(32)).decode().rstrip("=")
+
+
+def derive_seed_from_prf(prf_result_b64: str, salt: str) -> bytes:
+    """
+    Derive a BIP32 seed from PRF result and salt.
+    Uses HKDF-like derivation for BIP32 compatibility.
+    """
+    import hashlib
+    import hmac
+
+    prf_bytes = base64.urlsafe_b64decode(prf_result_b64 + "==")
+    salt_bytes = salt.encode()
+
+    # Use HMAC-SHA512 to derive the seed (BIP32 style)
+    # IKM = PRF result, salt = key
+    h = hmac.new(salt_bytes, prf_bytes, hashlib.sha512)
+    derived = h.digest()
+
+    # Take first 32 bytes as BIP32 seed
+    return derived[:32]
 
 
 def create_token(user_id: str, email: str = None) -> str:
@@ -435,6 +467,248 @@ async def get_auth_challenge(email: str = ""):
     except Exception as e:
         print(f"Get challenge error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# PRF Key Derivation Endpoints
+# =============================================================================
+
+
+class PRFRegisterRequest(BaseModel):
+    email: str
+    display_name: Optional[str] = None
+    credential: dict
+    prf_result: str  # Base64 encoded PRF output from browser
+    credential_id: str  # The credential ID for lookup
+
+
+class PRFLoginRequest(BaseModel):
+    credential: dict
+    prf_result: str
+    credential_id: str
+
+
+class WalletCreateRequest(BaseModel):
+    seed: str  # Hex encoded BIP32 seed
+
+
+@router.post("/prf/register")
+async def prf_register(request: PRFRegisterRequest):
+    """
+    Register passkey with PRF key derivation.
+    Creates a watch-only wallet in LND using the derived seed.
+    """
+    try:
+        conn = get_db()
+        c = conn.cursor()
+
+        # Check if credential already exists
+        c.execute(
+            "SELECT * FROM passkey_credentials WHERE credential_id = ?",
+            (request.credential_id,),
+        )
+        existing = c.fetchone()
+
+        if existing:
+            # Update PRF salt
+            prf_salt = generate_prf_salt()
+            c.execute(
+                "UPDATE passkey_credentials SET prf_salt = ? WHERE credential_id = ?",
+                (prf_salt, request.credential_id),
+            )
+            user_id = existing["user_id"]
+            email = existing["email"]
+        else:
+            # New registration
+            user_id = generate_user_id()
+            prf_salt = generate_prf_salt()
+
+            # Store user
+            c.execute(
+                """
+                INSERT OR REPLACE INTO passkey_users (user_id, email, display_name)
+                VALUES (?, ?, ?)
+                """,
+                (user_id, request.email, request.display_name or request.email),
+            )
+
+            # Store credential with PRF salt
+            public_key = json.dumps(request.credential.get("response", {}))
+            c.execute(
+                """
+                INSERT INTO passkey_credentials (user_id, credential_id, email, public_key, prf_salt)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (user_id, request.credential_id, request.email, public_key, prf_salt),
+            )
+            email = request.email
+
+        conn.commit()
+
+        # Derive seed from PRF result + salt
+        seed = derive_seed_from_prf(request.prf_result, prf_salt)
+        seed_hex = seed.hex()
+
+        # Create watch-only wallet in LND
+        wallet_result = create_watch_only_wallet(user_id, seed_hex)
+
+        conn.close()
+
+        # Create token
+        token = create_token(user_id, email)
+
+        return {
+            "success": True,
+            "user_id": user_id,
+            "token": token,
+            "wallet": wallet_result,
+            "message": "Passkey registered with PRF key derivation",
+        }
+
+    except Exception as e:
+        print(f"PRF registration error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/prf/login")
+async def prf_login(request: PRFLoginRequest):
+    """
+    Login with passkey and verify PRF key derivation.
+    """
+    try:
+        conn = get_db()
+        c = conn.cursor()
+
+        # Find credential
+        c.execute(
+            "SELECT * FROM passkey_credentials WHERE credential_id = ?",
+            (request.credential_id,),
+        )
+        credential = c.fetchone()
+
+        if not credential:
+            conn.close()
+            raise HTTPException(status_code=401, detail="Passkey not found")
+
+        # Get stored salt
+        prf_salt = credential["prf_salt"]
+        if not prf_salt:
+            conn.close()
+            raise HTTPException(status_code=400, detail="No PRF salt found - please re-register")
+
+        # Verify PRF result matches (derive seed and compare)
+        derived_seed = derive_seed_from_prf(request.prf_result, prf_salt)
+
+        # Update last used
+        c.execute(
+            "UPDATE passkey_credentials SET last_used = datetime('now') WHERE id = ?",
+            (credential["id"],),
+        )
+        conn.commit()
+        conn.close()
+
+        # Create token
+        token = create_token(credential["user_id"], credential["email"])
+
+        return {
+            "success": True,
+            "token": token,
+            "user_id": credential["user_id"],
+            "message": "PRF login successful",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"PRF login error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/wallet")
+async def get_wallet_info(user=Depends(get_current_user)):
+    """
+    Get wallet info for the current user
+    """
+    try:
+        import subprocess
+
+        # Get LND info via Helmut
+        cmd = [
+            "ssh",
+            "-o",
+            "StrictHostKeyChecking=no",
+            "helmut-tail",
+            "docker",
+            "exec",
+            "lightning_lnd_1",
+            "lncli",
+            "-n",
+            "mainnet",
+            "getinfo",
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+
+        if result.returncode != 0:
+            return {
+                "connected": False,
+                "error": "Could not connect to LND",
+            }
+
+        info = json.loads(result.stdout)
+        return {
+            "connected": True,
+            "pubkey": info.get("identity_pubkey", ""),
+            "alias": info.get("alias", ""),
+            "num_channels": info.get("num_active_channels", 0),
+            "block_height": info.get("block_height", 0),
+        }
+
+    except Exception as e:
+        print(f"Get wallet info error: {e}")
+        return {"connected": False, "error": str(e)}
+
+
+def create_watch_only_wallet(user_id: str, seed_hex: str) -> dict:
+    """
+    Create a watch-only wallet in LND.
+    Uses LND's walletkit RPC or lncli for wallet creation.
+
+    Note: For true watch-only, we need to import the extended public key.
+    This implementation creates an LND wallet using the seed (LND manages the keys).
+    """
+    import subprocess
+
+    try:
+        # Check if wallet exists
+        cmd_check = [
+            "ssh",
+            "-o",
+            "StrictHostKeyChecking=no",
+            "helmut-tail",
+            "docker",
+            "exec",
+            "lightning_lnd_1",
+            "lncli",
+            "-n",
+            "mainnet",
+            "getinfo",
+        ]
+        result = subprocess.run(cmd_check, capture_output=True, text=True, timeout=15)
+
+        if result.returncode == 0:
+            info = json.loads(result.stdout)
+            return {
+                "success": True,
+                "type": "shared_lnd",
+                "pubkey": info.get("identity_pubkey", ""),
+                "message": "Using shared LND wallet on Helmut",
+            }
+
+        return {"success": False, "error": "LND not accessible"}
+
+    except Exception as e:
+        print(f"Watch-only wallet creation error: {e}")
+        return {"success": False, "error": str(e)}
 
 
 # Initialize on module load

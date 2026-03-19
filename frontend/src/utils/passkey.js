@@ -84,7 +84,7 @@ function base64URLDecode(str) {
 }
 
 /**
- * Register a new passkey for a user
+ * Register a new passkey for a user with PRF key derivation
  *
  * @param {string} email - User email
  * @param {string} displayName - User display name
@@ -95,18 +95,34 @@ export async function registerPasskey(email, displayName) {
     throw new Error('Passkeys are not supported in this browser');
   }
 
-  // 1. Get registration options from server
-  const challenge = generateChallenge();
-  const userId = generateUserId();
+  // 1. Get registration challenge from server
+  let challenge, rpId;
+  try {
+    const res = await fetch(
+      `${API_URL}/auth/passkey/challenge/register?email=${encodeURIComponent(email)}`
+    );
+    if (res.ok) {
+      const data = await res.json();
+      challenge = data.challenge;
+      rpId = data.rp_id || RP_ID;
+    } else {
+      // Fallback to local challenge
+      challenge = generateChallenge();
+      rpId = RP_ID;
+    }
+  } catch {
+    challenge = generateChallenge();
+    rpId = RP_ID;
+  }
 
-  // Store userId in localStorage for login (in production, use secure storage)
+  const userId = generateUserId();
   localStorage.setItem('zapout_passkey_userId', base64URLEncode(userId));
 
-  // 2. Create public key credential options
+  // 2. Create public key credential options with PRF
   const publicKeyCredentialCreationOptions = {
     challenge: base64URLDecode(challenge),
     rp: {
-      id: RP_ID,
+      id: rpId,
       name: RP_NAME,
     },
     user: {
@@ -119,13 +135,11 @@ export async function registerPasskey(email, displayName) {
       { alg: -257, type: 'public-key' }, // RS256
     ],
     authenticatorSelection: {
-      // Don't restrict to 'platform' - allow any authenticator including browser-based
-      // On desktop Linux, browsers can act as software authenticators
       userVerification: 'required',
-      residentKey: 'discouraged', // Non-discoverable is more compatible with phone-as-security-key
+      residentKey: 'discouraged',
     },
-    timeout: 120000, // 2 minutes for QR code pairing
-    attestation: 'none', // Don't send attestation for privacy
+    timeout: 120000,
+    attestation: 'none',
     extensions: {
       prf: {
         eval: {
@@ -150,58 +164,100 @@ export async function registerPasskey(email, displayName) {
     throw new Error('Passkey registration was cancelled');
   }
 
-  // 4. Process the credential response
+  // 4. Extract credential data and PRF result
   const credentialId = base64URLEncode(credential.rawId);
   const attestationResponse = credential.response;
 
-  // Extract PRF result if available (Breez SDK style)
+  // Extract PRF result
   let prfResult = null;
-  if (credential.getClientExtensionResults?.().prf?.enabled) {
-    // PRF is supported and was used
-    prfResult = base64URLEncode(credential.getClientExtensionResults().prf.results.first);
+  const extResults = credential.getClientExtensionResults?.();
+  if (extResults?.prf?.enabled && extResults?.prf?.results?.first) {
+    prfResult = base64URLEncode(extResults.prf.results.first);
+    console.log('PRF enabled, derived key available');
   }
 
-  // 5. Send credential to server for verification and storage
-  const credentialData = {
-    id: credentialId,
-    rawId: credentialId,
-    type: credential.type,
-    response: {
-      attestationObject: base64URLEncode(attestationResponse.attestationObject),
-      clientDataJSON: base64URLEncode(attestationResponse.clientDataJSON),
-    },
-    prfResult: prfResult, // May be used as wallet seed
-  };
-
-  // 6. Register with backend
+  // 5. Register with backend using PRF endpoint
   try {
-    const response = await fetch(API_URL + '/auth/passkey/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email,
-        credential: credentialData,
-        challenge,
-      }),
-    }).catch(err => {
-      console.error('Network error:', err);
-      throw new Error('Netzwerkfehler: ' + err.message);
-    });
+    // If we have PRF, use the dedicated PRF endpoint
+    if (prfResult) {
+      const response = await fetch(API_URL + '/auth/passkey/prf/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          display_name: displayName || email,
+          credential_id: credentialId,
+          credential: {
+            id: credentialId,
+            rawId: credentialId,
+            type: credential.type,
+            response: {
+              attestationObject: base64URLEncode(attestationResponse.attestationObject),
+              clientDataJSON: base64URLEncode(attestationResponse.clientDataJSON),
+            },
+          },
+          prf_result: prfResult,
+        }),
+      });
 
-    const data = await response.json();
+      const data = await response.json();
 
-    if (!response.ok) {
-      const errorMsg = data.error || data.detail || 'Registration failed';
-      console.error('Backend registration error:', response.status, errorMsg, data);
-      throw new Error(errorMsg);
+      if (!response.ok) {
+        const errorMsg = data.error || data.detail || 'PRF Registration failed';
+        throw new Error(errorMsg);
+      }
+
+      // Store credential ID for later login
+      localStorage.setItem('zapout_passkey_credentialId', credentialId);
+
+      return {
+        success: true,
+        credentialId,
+        userId: base64URLEncode(userId),
+        prfResult,
+        token: data.token,
+        wallet: data.wallet,
+        message: 'Passkey registered with PRF key derivation',
+      };
+    } else {
+      // Fallback to regular registration (no PRF)
+      const credentialData = {
+        id: credentialId,
+        rawId: credentialId,
+        type: credential.type,
+        response: {
+          attestationObject: base64URLEncode(attestationResponse.attestationObject),
+          clientDataJSON: base64URLEncode(attestationResponse.clientDataJSON),
+        },
+      };
+
+      const response = await fetch(API_URL + '/auth/passkey/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          credential: credentialData,
+          challenge,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        const errorMsg = data.error || data.detail || 'Registration failed';
+        throw new Error(errorMsg);
+      }
+
+      localStorage.setItem('zapout_passkey_credentialId', credentialId);
+
+      return {
+        success: true,
+        credentialId,
+        userId: base64URLEncode(userId),
+        prfResult: null,
+        token: data.token,
+      };
     }
-
-    return {
-      success: true,
-      credentialId,
-      userId: base64URLEncode(userId),
-      prfResult,
-    };
   } catch (error) {
     console.error('Backend registration error:', error);
     throw error;
@@ -221,19 +277,29 @@ export async function authenticatePasskey(email = null) {
 
   const challenge = generateChallenge();
   const storedUserId = localStorage.getItem('zapout_passkey_userId');
+  const storedCredentialId = localStorage.getItem('zapout_passkey_credentialId');
 
   // Allow email to be provided or auto-detected
   const userId = email ? generateUserId() : storedUserId ? base64URLDecode(storedUserId) : null;
 
-  // Don't specify allowCredentials - let browser select any registered passkey
-  // This is more reliable across browsers than specifying null IDs
+  // Allow credentials with stored credential ID if available
+  const allowCredentials = storedCredentialId
+    ? [{ id: base64URLDecode(storedCredentialId), type: 'public-key' }]
+    : [];
+
+  // Request PRF with the challenge as input
   const publicKeyCredentialRequestOptions = {
     challenge: base64URLDecode(challenge),
     rpId: RP_ID,
     userVerification: 'required',
     timeout: TIMEOUT,
+    allowCredentials: allowCredentials.length > 0 ? allowCredentials : undefined,
     extensions: {
-      prf: {},
+      prf: {
+        eval: {
+          first: base64URLDecode(challenge),
+        },
+      },
     },
   };
 
@@ -274,33 +340,63 @@ export async function authenticatePasskey(email = null) {
         ? base64URLEncode(assertion.response.userHandle)
         : null,
     },
-    prfResult: prfResult,
   };
 
-  // 5. Verify with backend and get token
+  // 5. Verify with backend - use PRF endpoint if we have PRF result
   try {
-    const response = await fetch(API_URL + '/auth/passkey/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        credential: assertionData,
-        challenge,
-        email: email || undefined,
-      }),
-    });
+    if (prfResult && storedCredentialId) {
+      // Use PRF login endpoint
+      const response = await fetch(API_URL + '/auth/passkey/prf/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          credential: assertionData,
+          credential_id: credentialId,
+          prf_result: prfResult,
+        }),
+      });
 
-    const data = await response.json();
+      const data = await response.json();
 
-    if (!response.ok) {
-      throw new Error(data.error || 'Authentication failed');
+      if (!response.ok) {
+        const errorMsg = data.error || data.detail || 'PRF Authentication failed';
+        throw new Error(errorMsg);
+      }
+
+      return {
+        success: true,
+        token: data.token,
+        userId: data.user_id,
+        credentialId,
+        prfResult,
+        message: 'PRF login successful',
+      };
+    } else {
+      // Fallback to regular login
+      const response = await fetch(API_URL + '/auth/passkey/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          credential: assertionData,
+          challenge,
+          email: email || undefined,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Authentication failed');
+      }
+
+      return {
+        success: true,
+        token: data.token,
+        userId: data.user_id,
+        credentialId,
+        prfResult: null,
+      };
     }
-
-    return {
-      success: true,
-      token: data.token,
-      credentialId,
-      prfResult,
-    };
   } catch (error) {
     console.error('Backend authentication error:', error);
     throw error;
