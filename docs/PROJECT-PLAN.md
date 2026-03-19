@@ -199,7 +199,7 @@ Cross-Mint Swap (Token von Mint X → Lightning) erfordert:
 | **Basket System**           | ✅     | 🟡 MED   | Numo   |
 | POS-Kassenoberfläche        | ⏸️     | Must     | -      |
 | Produkt-Kategorien          | ⏸️     | Must     | -      |
-| **VAT/MwSt Support**        | ❌     | 🟡 MED   | Numo   |
+| **VAT/MwSt Support**        | ✅     | 🟡 MED   | Numo   |
 | Bon-Funktion                | ⏸️     | Should   | -      |
 | Tagesbericht                | ⏸️     | Should   | -      |
 | NFC Tap-to-Add              | ⏸️     | Nice     | Numo   |
