@@ -5,10 +5,21 @@ import BasketListModal from '../components/BasketListModal';
 
 const API_URL = 'http://localhost:8000';
 
+// === DESIGN SYSTEM TOKENS (Digital Sovereignty - The Kinetic Vault) ===
+const surface = '#131313';
+const surfaceContainerLow = '#1C1B1B';
+const surfaceContainerHigh = '#2A2A2A';
+const surfaceContainerHighest = '#353534';
+const primary = '#f7931a';
+const primaryContainer = '#f7931a';
+const onSurface = '#e5e2e1';
+const onSurfaceVariant = '#dbc2ae';
+const outline = '#554335';
+
 const containerStyle = {
   minHeight: '100vh',
-  backgroundColor: '#0a0a0a',
-  color: '#ffffff',
+  backgroundColor: surface,
+  color: onSurface,
   padding: '16px',
 };
 
@@ -18,15 +29,16 @@ const headerStyle = {
   alignItems: 'center',
   marginBottom: '16px',
   padding: '12px 16px',
-  backgroundColor: '#141414',
+  backgroundColor: surfaceContainerLow,
   borderRadius: '16px',
-  border: '1px solid #222222',
+  border: 'none', // No borders - tonal shifts only
 };
 
 const totalStyle = {
   fontSize: '24px',
   fontWeight: '700',
-  color: '#f7931a',
+  color: primaryContainer,
+  fontFamily: 'Manrope, system-ui, sans-serif',
 };
 
 const categoryBarStyle = {
@@ -40,19 +52,20 @@ const categoryBarStyle = {
 const categoryButton = active => ({
   padding: '10px 16px',
   borderRadius: '20px',
-  border: active ? '2px solid #f7931a' : '1px solid #333',
-  backgroundColor: active ? '#1a1a1a' : '#0a0a0a',
-  color: active ? '#f7931a' : '#666',
+  border: 'none', // No borders
+  backgroundColor: active ? surfaceContainerHigh : 'transparent',
+  color: active ? primaryContainer : onSurfaceVariant,
   fontSize: '13px',
   fontWeight: active ? '600' : '400',
   cursor: 'pointer',
   whiteSpace: 'nowrap',
+  fontFamily: 'Inter, system-ui, sans-serif',
 });
 
 const productGridStyle = {
   display: 'grid',
   gridTemplateColumns: 'repeat(3, 1fr)',
-  gap: '12px',
+  gap: '8px', // 2px void between keys per design system
   marginBottom: '16px',
 };
 
@@ -63,11 +76,11 @@ const productButtonStyle = {
   alignItems: 'center',
   justifyContent: 'center',
   padding: '12px',
-  borderRadius: '16px',
-  border: '1px solid #222222',
-  backgroundColor: '#141414',
+  borderRadius: '12px',
+  border: 'none', // Tonal depth, no borders
+  backgroundColor: surfaceContainerHighest, // Closest to user
   cursor: 'pointer',
-  transition: 'transform 0.1s',
+  transition: 'all 0.15s ease-out',
 };
 
 const productEmojiStyle = {
@@ -88,9 +101,10 @@ const productNameStyle = {
 
 const productPriceStyle = {
   fontSize: '13px',
-  color: '#f7931a',
+  color: primaryContainer, // Bitcoin Orange
   fontWeight: '600',
   marginTop: '4px',
+  fontFamily: 'Manrope, system-ui, sans-serif',
 };
 
 const cartStyle = {
@@ -98,8 +112,8 @@ const cartStyle = {
   bottom: 0,
   left: 0,
   right: 0,
-  backgroundColor: '#141414',
-  borderTop: '1px solid #222222',
+  backgroundColor: surfaceContainerLow, // Tonal depth
+  borderTop: 'none', // No border - tonal shift
   padding: '16px',
   paddingBottom: '24px',
 };
@@ -115,8 +129,9 @@ const cartItemStyle = {
   justifyContent: 'space-between',
   alignItems: 'center',
   padding: '8px 0',
-  borderBottom: '1px solid #222222',
+  borderBottom: 'none', // No dividers - use spacing
   fontSize: '14px',
+  color: onSurface,
 };
 
 const paymentButtonsStyle = {
@@ -132,19 +147,24 @@ const primaryButtonStyle = {
   fontSize: '16px',
   fontWeight: '600',
   cursor: 'pointer',
+  transition: 'all 0.15s ease-out',
+  fontFamily: 'Inter, system-ui, sans-serif',
 };
 
 const lightningButtonStyle = {
   ...primaryButtonStyle,
-  backgroundColor: '#f7931a',
-  color: '#000000',
+  // Bitcoin Orange Gradient per Design System
+  background: 'linear-gradient(135deg, #ffb874 0%, #f7931a 100%)',
+  color: '#603500', // on-primary-container
+  boxShadow: '0 4px 12px rgba(247, 147, 26, 0.3)',
 };
 
 const cashuButtonStyle = {
   ...primaryButtonStyle,
-  backgroundColor: '#1a1a1a',
-  color: '#ffffff',
-  border: '1px solid #333',
+  backgroundColor: surfaceContainerHighest,
+  color: onSurface,
+  // Ghost border - primary at 20%
+  border: '1px solid rgba(255, 184, 116, 0.2)',
 };
 
 export default function POSScreen({ onBack }) {
