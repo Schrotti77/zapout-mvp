@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { api } from '../utils/api';
 import MintCard from '../components/MintCard';
 import AddMintModal from '../components/AddMintModal';
+
+const API_URL = 'http://localhost:8000';
+
+const getToken = () => localStorage.getItem('zapout_token');
 
 const MintSettingsScreen = () => {
   const { t } = useTranslation();
@@ -23,8 +26,11 @@ const MintSettingsScreen = () => {
   const fetchMints = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/cashu/mints');
-      setMints(response.data || []);
+      const res = await fetch(`${API_URL}/cashu/mints`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json();
+      setMints(data || []);
     } catch (err) {
       console.error('Error fetching mints:', err);
       setError(err.message || 'Failed to load mints');
@@ -35,11 +41,14 @@ const MintSettingsScreen = () => {
 
   const fetchSettings = async () => {
     try {
-      const response = await api.get('/cashu/settings');
-      if (response.data) {
+      const res = await fetch(`${API_URL}/cashu/settings`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json();
+      if (data) {
         setSettings({
-          accept_unknown_mints: response.data.accept_unknown_mints ?? true,
-          auto_swap_to_lightning: response.data.auto_swap_to_lightning ?? true,
+          accept_unknown_mints: data.accept_unknown_mints ?? true,
+          auto_swap_to_lightning: data.auto_swap_to_lightning ?? true,
         });
       }
     } catch (err) {
@@ -48,25 +57,34 @@ const MintSettingsScreen = () => {
   };
 
   const handleAddMint = async (mintUrl, mintName) => {
-    try {
-      const response = await api.post('/cashu/mints', {
+    const res = await fetch(`${API_URL}/cashu/mints`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${getToken()}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
         mint_url: mintUrl,
         mint_name: mintName || undefined,
-      });
-      if (response.data) {
-        setMints([...mints, response.data]);
-        setShowAddModal(false);
-      }
-    } catch (err) {
-      throw new Error(err.response?.data?.detail || 'Failed to add mint');
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || 'Failed to add mint');
     }
+    const data = await res.json();
+    setMints([...mints, data]);
+    setShowAddModal(false);
   };
 
   const handleRemoveMint = async mintId => {
     if (!confirm('Remove this mint?')) return;
 
     try {
-      await api.delete(`/cashu/mints/${mintId}`);
+      await fetch(`${API_URL}/cashu/mints/${mintId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
       setMints(mints.filter(m => m.id !== mintId));
     } catch (err) {
       console.error('Error removing mint:', err);
@@ -76,11 +94,15 @@ const MintSettingsScreen = () => {
 
   const handleSetPreferred = async mintId => {
     try {
-      const response = await api.put(`/cashu/mints/${mintId}`, {
-        is_preferred: true,
+      const res = await fetch(`${API_URL}/cashu/mints/${mintId}`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${getToken()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ is_preferred: true }),
       });
-      if (response.data) {
-        // Update all mints: set this one as preferred, others not
+      if (res.ok) {
         setMints(
           mints.map(m => ({
             ...m,
@@ -96,13 +118,17 @@ const MintSettingsScreen = () => {
 
   const handleToggleActive = async (mintId, currentState) => {
     try {
-      const response = await api.put(`/cashu/mints/${mintId}`, {
-        is_active: !currentState,
+      const res = await fetch(`${API_URL}/cashu/mints/${mintId}`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${getToken()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ is_active: !currentState }),
       });
-      if (response.data) {
-        setMints(
-          mints.map(m => (m.id === mintId ? { ...m, is_active: response.data.is_active } : m))
-        );
+      const data = await res.json();
+      if (res.ok) {
+        setMints(mints.map(m => (m.id === mintId ? { ...m, is_active: data.is_active } : m)));
       }
     } catch (err) {
       console.error('Error toggling mint:', err);
@@ -112,11 +138,13 @@ const MintSettingsScreen = () => {
 
   const handleRefreshBalance = async mintId => {
     try {
-      const response = await api.post(`/cashu/mints/${mintId}/refresh-balance`);
-      if (response.data) {
-        setMints(
-          mints.map(m => (m.id === mintId ? { ...m, balance_sats: response.data.balance_sats } : m))
-        );
+      const res = await fetch(`${API_URL}/cashu/mints/${mintId}/refresh-balance`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setMints(mints.map(m => (m.id === mintId ? { ...m, balance_sats: data.balance_sats } : m)));
       }
     } catch (err) {
       console.error('Error refreshing balance:', err);
@@ -127,8 +155,17 @@ const MintSettingsScreen = () => {
   const handleUpdateSettings = async (key, value) => {
     try {
       const newSettings = { ...settings, [key]: value };
-      await api.put('/cashu/settings', newSettings);
-      setSettings(newSettings);
+      const res = await fetch(`${API_URL}/cashu/settings`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${getToken()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(newSettings),
+      });
+      if (res.ok) {
+        setSettings(newSettings);
+      }
     } catch (err) {
       console.error('Error updating settings:', err);
       alert('Failed to update settings');
