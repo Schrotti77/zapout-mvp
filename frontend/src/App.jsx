@@ -94,6 +94,9 @@ function App() {
         setScreen={setScreen}
         onAuthSuccess={newToken => {
           setToken(newToken);
+          // Navigate to stored screen or dashboard after successful auth
+          const storedScreen = localStorage.getItem('zapout_start_screen') || 'dashboard';
+          setScreen(storedScreen);
         }}
         onSkip={() => setScreen('register')}
       />
@@ -107,6 +110,9 @@ function App() {
         setScreen={setScreen}
         onAuthSuccess={newToken => {
           setToken(newToken);
+          // Navigate to stored screen or dashboard after successful auth
+          const storedScreen = localStorage.getItem('zapout_start_screen') || 'dashboard';
+          setScreen(storedScreen);
         }}
       />
     );
