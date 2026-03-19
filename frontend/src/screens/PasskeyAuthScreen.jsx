@@ -166,6 +166,46 @@ function PasskeyAuthScreen({ mode: initialMode, setScreen, onAuthSuccess, onSkip
     }
   };
 
+  // Fallback: Email-only registration (no passkey, for testing)
+  const handleEmailFallbackRegister = async () => {
+    if (!email) {
+      setError(t('auth.email') + ' erforderlich');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await fetch('http://localhost:8000/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email,
+          password: 'fallback-no-passkey', // Dummy password for fallback
+          iban: '',
+          phone: '',
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.detail || 'Registration failed');
+      }
+
+      const data = await response.json();
+      localStorage.setItem('zapout_token', data.token);
+      localStorage.setItem('zapout_passkey_email', email);
+      localStorage.setItem('zapout_fallback_mode', 'true'); // Mark as fallback
+      onAuthSuccess(data.token);
+    } catch (e) {
+      console.error('Email fallback registration error:', e);
+      setError(e.message || 'Registration failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Mode: Select (choose between register or login)
   if (mode === 'select') {
     return (
@@ -359,6 +399,14 @@ function PasskeyAuthScreen({ mode: initialMode, setScreen, onAuthSuccess, onSkip
             disabled={loading}
           >
             {loading ? 'Wird erstellt...' : 'Passkey erstellen'}
+          </button>
+
+          <button
+            style={{ ...btnSecondary, marginTop: '12px' }}
+            onClick={handleEmailFallbackRegister}
+            disabled={loading}
+          >
+            {loading ? 'Wird erstellt...' : '📧 Nur Email (Fallback für Test)'}
           </button>
 
           <p

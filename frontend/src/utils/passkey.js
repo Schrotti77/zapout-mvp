@@ -15,12 +15,26 @@ const TIMEOUT = 60000; // 60 seconds
 
 /**
  * Check if WebAuthn/Passkeys are supported
+ * Note: We check for basic WebAuthn support, not just platform authenticators.
+ * Browsers on desktop (even Linux) can use software-based passkeys.
  */
 export function isPasskeySupported() {
-  return !!(
-    window.PublicKeyCredential &&
-    window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable
-  );
+  return !!(window.PublicKeyCredential && typeof window.PublicKeyCredential === 'function');
+}
+
+/**
+ * Check if device has a platform authenticator (TouchID, Windows Hello, etc.)
+ * This is optional - passkeys can work via browser-based software too
+ */
+export async function isPlatformAuthenticatorAvailable() {
+  if (!window.PublicKeyCredential?.isUserVerifyingPlatformAuthenticatorAvailable) {
+    return false;
+  }
+  try {
+    return await window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -105,11 +119,12 @@ export async function registerPasskey(email, displayName) {
       { alg: -257, type: 'public-key' }, // RS256
     ],
     authenticatorSelection: {
-      authenticatorAttachment: 'platform', // Prefer platform (device) authenticator
+      // Don't restrict to 'platform' - allow any authenticator including browser-based
+      // On desktop Linux, browsers can act as software authenticators
       userVerification: 'required',
-      residentKey: 'preferred',
+      residentKey: 'discouraged', // Non-discoverable is more compatible with phone-as-security-key
     },
-    timeout: TIMEOUT,
+    timeout: 120000, // 2 minutes for QR code pairing
     attestation: 'none', // Don't send attestation for privacy
     extensions: {
       prf: {
@@ -168,12 +183,17 @@ export async function registerPasskey(email, displayName) {
         credential: credentialData,
         challenge,
       }),
+    }).catch(err => {
+      console.error('Network error:', err);
+      throw new Error('Netzwerkfehler: ' + err.message);
     });
 
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.error || 'Registration failed');
+      const errorMsg = data.error || data.detail || 'Registration failed';
+      console.error('Backend registration error:', response.status, errorMsg, data);
+      throw new Error(errorMsg);
     }
 
     return {
@@ -205,17 +225,8 @@ export async function authenticatePasskey(email = null) {
   // Allow email to be provided or auto-detected
   const userId = email ? generateUserId() : storedUserId ? base64URLDecode(storedUserId) : null;
 
-  // Build allowed credentials
-  const allowCredentials = [];
-  if (storedUserId || email) {
-    allowCredentials.push({
-      id: null, // Let browser select
-      type: 'public-key',
-      transports: ['internal', 'hybrid'], // Platform and cross-platform
-    });
-  }
-
-  // 2. Create assertion options
+  // Don't specify allowCredentials - let browser select any registered passkey
+  // This is more reliable across browsers than specifying null IDs
   const publicKeyCredentialRequestOptions = {
     challenge: base64URLDecode(challenge),
     rpId: RP_ID,
@@ -225,10 +236,6 @@ export async function authenticatePasskey(email = null) {
       prf: {},
     },
   };
-
-  if (allowCredentials.length > 0) {
-    publicKeyCredentialRequestOptions.allowCredentials = allowCredentials;
-  }
 
   // 3. Get assertion from authenticator
   let assertion;
