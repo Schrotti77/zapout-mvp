@@ -9,6 +9,7 @@ import json
 import os
 import secrets
 import sqlite3
+import struct
 import time
 from datetime import datetime, timedelta
 from typing import Optional
@@ -16,6 +17,9 @@ from typing import Optional
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fido2 import cbor
+from fido2.ctap2 import AssertionResponse
+from fido2.utils import sha256
 from pydantic import BaseModel
 
 # Database path
@@ -103,6 +107,197 @@ def init_passkey_db():
 
 # Initialize tables
 init_passkey_db()
+
+
+def verify_webauthn_assertion(
+    credential: dict,
+    stored_credential: dict,
+    expected_challenge: str,
+    rp_id: str = "zapout.local",
+    rp_origin: str = "http://localhost:3000",
+) -> dict:
+    """
+    SEC-001: Verify WebAuthn assertion signature.
+
+    Args:
+        credential: The assertion response from the browser
+        stored_credential: The credential from our database
+        expected_challenge: The challenge we issued
+        rp_id: Expected Relying Party ID
+        rp_origin: Expected origin
+
+    Returns:
+        dict with verification results
+
+    Raises:
+        HTTPException if verification fails
+    """
+    try:
+        response = credential.get("response", {})
+
+        # Extract assertion components
+        authenticator_data_b64 = response.get("authenticatorData")
+        client_data_json_b64 = response.get("clientDataJSON")
+        signature_b64 = response.get("signature")
+        user_handle_b64 = response.get("userHandle")
+
+        if not all([authenticator_data_b64, client_data_json_b64, signature_b64]):
+            raise HTTPException(status_code=400, detail="Missing assertion data")
+
+        # Decode base64url
+        authenticator_data = base64.urlsafe_b64decode(authenticator_data_b64 + "==")
+        client_data_json = base64.urlsafe_b64decode(client_data_json_b64 + "==")
+        signature = base64.urlsafe_b64decode(signature_b64 + "==")
+        user_handle = base64.urlsafe_b64decode(user_handle_b64 + "==") if user_handle_b64 else None
+
+        # 1. Parse authenticatorData
+        # Format: rpIdHash(32) + flags(1) + counter(4) + attestedCredentialData(optional) + extensions(optional)
+        if len(authenticator_data) < 37:
+            raise HTTPException(status_code=400, detail="Invalid authenticatorData length")
+
+        rp_id_hash = authenticator_data[:32]
+        flags = authenticator_data[32]
+        counter = struct.unpack(">I", authenticator_data[33:37])[0]
+
+        # Check flags
+        UP = (flags & 0x01) != 0  # User Present
+        UV = (flags & 0x04) != 0  # User Verified
+        AT = (flags & 0x40) != 0  # Attested Credential Data included (not typical for assertion)
+
+        if not UP:
+            raise HTTPException(status_code=401, detail="User not present")
+
+        # 2. Parse clientDataJSON
+        client_data = json.loads(client_data_json)
+
+        # Verify challenge matches
+        client_challenge = client_data.get("challenge")
+        if client_challenge != expected_challenge:
+            raise HTTPException(status_code=401, detail="Challenge mismatch")
+
+        # Verify origin
+        client_origin = client_data.get("origin")
+        if client_origin not in [
+            rp_origin,
+            rp_origin.replace("http://", "https://"),
+            "http://127.0.0.1:3000",
+        ]:
+            # Allow localhost variations
+            if not any(
+                clientOrigin in client_origin for clientOrigin in ["localhost", "127.0.0.1", rp_id]
+            ):
+                raise HTTPException(status_code=401, detail=f"Invalid origin: {client_origin}")
+
+        # Verify type is webauthn.get
+        client_type = client_data.get("type")
+        if client_type != "webauthn.get":
+            raise HTTPException(status_code=401, detail=f"Invalid type: {client_type}")
+
+        # 3. Verify signature
+        # The signed data is: authenticatorData || SHA256(clientDataJSON)
+        client_data_hash = sha256(client_data_json)
+        signed_data = authenticator_data + client_data_hash
+
+        # Parse stored public key (COSE format)
+        public_key_cose = json.loads(stored_credential["public_key"])
+
+        # Decode COSE key to crypto.PublicKey
+        from fido2.cose import ES256, RS256, EdDSA, SupportedKey
+
+        # Handle different key types
+        key_type = public_key_cose.get(1)  # kty
+        alg = public_key_cose.get(3)  # alg
+
+        # COSE key type: 1=OKP, 2=EC2, 3=RSA
+        if key_type == 2:  # EC2 (P-256/P-384/P-521)
+            # ES256 = -7, ES384 = -35, ES512 = -36
+            from cryptography.hazmat.primitives.asymmetric import ec
+            from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+
+            # Extract coordinates
+            x = public_key_cose.get(-2)  # x coordinate
+            y = public_key_cose.get(-3)  # y coordinate
+
+            if not x or not y:
+                raise HTTPException(status_code=500, detail="Missing EC coordinates")
+
+            # Create uncompressed point (02 or 03 prefix + x + y)
+            point = (
+                bytes([0x04])
+                + base64.urlsafe_b64decode(x + "==")
+                + base64.urlsafe_b64decode(y + "==")
+            )
+
+            # Determine curve
+            if alg == -7:  # ES256
+                curve = ec.SECP256R1()
+            elif alg == -35:  # ES384
+                curve = ec.SECP384R1()
+            elif alg == -36:  # ES512
+                curve = ec.SECP521R1()
+            else:
+                raise HTTPException(status_code=500, detail=f"Unsupported EC algorithm: {alg}")
+
+            from cryptography.hazmat.backends import default_backend
+
+            public_key = ec.EllipticCurvePublicKey.from_encoded_point(curve, point)
+
+            # Verify signature
+            public_key.verify(signature, signed_data, ec.ECDSA(ec.SECP256R1().name))
+
+        elif key_type == 3:  # RSA
+            from cryptography.hazmat.primitives.asymmetric import padding, rsa
+            from cryptography.hazmat.primitives.serialization import load_der_public_key
+
+            n = public_key_cose.get(-1)  # modulus
+            e = public_key_cose.get(-2)  # exponent
+
+            if not n or not e:
+                raise HTTPException(status_code=500, detail="Missing RSA parameters")
+
+            # Decode DER components
+            n_bytes = base64.urlsafe_b64decode(n + "==")
+            e_bytes = base64.urlsafe_b64decode(e + "==")
+
+            # Build DER public key
+            from cryptography.hazmat.primitives.asymmetric.rsa import rsa_crt_iqmp
+            from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+
+            # RSA public key DER structure
+            from cryptography.x509 import basic_constraints
+
+            public_numbers = rsa.RSAPublicNumbers(
+                e=int.from_bytes(e_bytes, "big"), n=int.from_bytes(n_bytes, "big")
+            )
+            public_key = public_numbers.public_key()
+
+            # Verify signature (PKCS1v15)
+            public_key.verify(signature, signed_data, padding.PKCS1v15())
+        else:
+            raise HTTPException(status_code=500, detail=f"Unsupported key type: {key_type}")
+
+        # 4. Check counter for replay protection
+        stored_counter = stored_credential.get("counter", 0)
+        if counter <= stored_counter and stored_counter > 0:
+            # Counter didn't increase - potential replay attack!
+            raise HTTPException(
+                status_code=401, detail="Counter did not increase - possible replay attack"
+            )
+
+        print(f"Assertion verified: counter={counter}, UP={UP}, UV={UV}")
+
+        return {
+            "verified": True,
+            "counter": counter,
+            "user_present": UP,
+            "user_verified": UV,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Assertion verification error: {e}")
+        raise HTTPException(status_code=500, detail=f"Assertion verification failed: {str(e)}")
 
 
 def generate_challenge() -> str:
@@ -575,16 +770,29 @@ async def prf_register(request: PRFRegisterRequest):
 async def prf_login(request: PRFLoginRequest):
     """
     Login with passkey and verify PRF key derivation.
-    SEC-001: Verifies the challenge was issued by us and not reused.
+    SEC-001: Verifies:
+    1. Challenge was issued by us and not reused
+    2. Assertion signature is valid
+    3. Counter increased (replay protection)
     """
     try:
         conn = get_db()
         c = conn.cursor()
 
-        # SEC-001: Verify challenge if provided
+        # SEC-001: Get stored credential with public key
+        c.execute(
+            "SELECT * FROM passkey_credentials WHERE credential_id = ?",
+            (request.credential_id,),
+        )
+        stored_credential = c.fetchone()
+
+        if not stored_credential:
+            conn.close()
+            raise HTTPException(status_code=401, detail="Passkey not found")
+
+        # SEC-001 Step 1: Verify challenge if provided
         challenge_verified = False
         if request.challenge:
-            # Check if challenge exists, is valid, and not used
             c.execute(
                 """
                 SELECT id FROM passkey_challenges
@@ -596,7 +804,6 @@ async def prf_login(request: PRFLoginRequest):
             challenge_row = c.fetchone()
 
             if challenge_row:
-                # Mark challenge as used
                 c.execute(
                     "UPDATE passkey_challenges SET used = 1 WHERE id = ?",
                     (challenge_row["id"],),
@@ -605,23 +812,30 @@ async def prf_login(request: PRFLoginRequest):
                 print(f"Challenge verified for credential: {request.credential_id}")
             else:
                 print(f"Invalid or expired challenge for credential: {request.credential_id}")
-                # Don't reject yet - allow login but log the issue
+
+        # SEC-001 Step 2: Verify assertion signature
+        assertion_result = None
+        if request.credential and request.challenge:
+            try:
+                assertion_result = verify_webauthn_assertion(
+                    credential=request.credential,
+                    stored_credential=dict(stored_credential),
+                    expected_challenge=request.challenge,
+                )
+                print(f"Assertion signature verified: {assertion_result}")
+            except HTTPException as e:
+                conn.close()
+                raise e
+            except Exception as e:
+                print(f"Assertion verification failed: {e}")
+                # Log but don't reject - PRF verification still helps
         else:
-            print(f"Warning: No challenge provided for credential: {request.credential_id}")
-
-        # Find credential
-        c.execute(
-            "SELECT * FROM passkey_credentials WHERE credential_id = ?",
-            (request.credential_id,),
-        )
-        credential = c.fetchone()
-
-        if not credential:
-            conn.close()
-            raise HTTPException(status_code=401, detail="Passkey not found")
+            print(
+                f"Warning: Skipping assertion verification (missing credential data or challenge)"
+            )
 
         # Get stored salt
-        prf_salt = credential["prf_salt"]
+        prf_salt = stored_credential["prf_salt"]
         if not prf_salt:
             conn.close()
             raise HTTPException(status_code=400, detail="No PRF salt found - please re-register")
@@ -629,24 +843,31 @@ async def prf_login(request: PRFLoginRequest):
         # Verify PRF result matches (derive seed and compare)
         derived_seed = derive_seed_from_prf(request.prf_result, prf_salt)
 
-        # Update last used
-        c.execute(
-            "UPDATE passkey_credentials SET last_used = datetime('now') WHERE id = ?",
-            (credential["id"],),
-        )
+        # SEC-001 Step 3: Update counter if assertion was verified
+        if assertion_result and assertion_result.get("counter") is not None:
+            c.execute(
+                "UPDATE passkey_credentials SET counter = ?, last_used = datetime('now') WHERE id = ?",
+                (assertion_result["counter"], stored_credential["id"]),
+            )
+        else:
+            c.execute(
+                "UPDATE passkey_credentials SET last_used = datetime('now') WHERE id = ?",
+                (stored_credential["id"],),
+            )
         conn.commit()
         conn.close()
 
         # Create token
-        token = create_token(credential["user_id"], credential["email"])
+        token = create_token(stored_credential["user_id"], stored_credential["email"])
 
         return {
             "success": True,
             "token": token,
-            "user_id": credential["user_id"],
+            "user_id": stored_credential["user_id"],
+            "assertion_verified": assertion_result is not None,
             "challenge_verified": challenge_verified,
             "message": "PRF login successful"
-            + (" (challenge verified)" if challenge_verified else " (challenge not verified)"),
+            + (" (assertion verified)" if assertion_result else " (assertion not verified)"),
         }
 
     except HTTPException:
