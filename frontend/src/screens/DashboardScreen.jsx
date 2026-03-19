@@ -42,6 +42,19 @@ const quickAmountStyle = {
 function DashboardScreen({ token, payments, loadPayments, setScreen }) {
   const [amount, setAmount] = useState('');
   const [invoice, setInvoice] = useState(null);
+  const [wallet, setWallet] = useState(null);
+
+  // Fetch wallet info on mount
+  useEffect(() => {
+    if (token) {
+      fetch(API_URL + '/auth/passkey/wallet', {
+        headers: { Authorization: 'Bearer ' + token },
+      })
+        .then(r => r.json())
+        .then(data => setWallet(data))
+        .catch(e => console.log('Wallet fetch failed:', e));
+    }
+  }, [token]);
 
   // Calculate today's total
   const today =
@@ -146,6 +159,51 @@ function DashboardScreen({ token, payments, loadPayments, setScreen }) {
               {(payments || []).length} Zahlungen
             </p>
           </div>
+
+          {/* Wallet Info Card */}
+          {wallet && wallet.connected && (
+            <div
+              style={{
+                backgroundColor: '#0d2818',
+                border: '1px solid #1a5c32',
+                borderRadius: '12px',
+                padding: '14px',
+                marginBottom: '20px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+              }}
+            >
+              <div
+                style={{
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '50%',
+                  backgroundColor: '#1a5c32',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '20px',
+                }}
+              >
+                ⚡
+              </div>
+              <div style={{ flex: 1 }}>
+                <p style={{ color: '#4ade80', fontSize: '14px', fontWeight: '600', margin: 0 }}>
+                  Lightning Wallet Verbunden
+                </p>
+                <p style={{ color: '#666666', fontSize: '12px', margin: '2px 0 0 0' }}>
+                  {wallet.alias || 'SynapseLN'} • {wallet.num_channels} Channels
+                </p>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <p style={{ color: '#888888', fontSize: '10px', margin: 0 }}>Block</p>
+                <p style={{ color: '#666666', fontSize: '12px', margin: 0 }}>
+                  {wallet.block_height}
+                </p>
+              </div>
+            </div>
+          )}
 
           <h3
             style={{
