@@ -316,7 +316,7 @@ export default function POSScreen({ onBack }) {
   const [tokenVerified, setTokenVerified] = useState(false);
   const [verifying, setVerifying] = useState(false);
 
-  // Verify Cashu token
+  // Verify/Swap Cashu token
   const verifyCashuToken = async () => {
     if (!tokenInput.trim()) return;
 
@@ -324,7 +324,8 @@ export default function POSScreen({ onBack }) {
     const token = localStorage.getItem('zapout_token');
 
     try {
-      const response = await fetch(`${API_URL}/cashu/verify`, {
+      // Use /cashu/swap which handles both trusted mints and auto-swap
+      const response = await fetch(`${API_URL}/cashu/swap`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -337,13 +338,17 @@ export default function POSScreen({ onBack }) {
 
       const data = await response.json();
 
-      if (data.valid) {
+      if (data.success) {
         setTokenVerified(true);
+        // Show swap info if applicable
+        if (data.message && data.message.includes('Swapped')) {
+          alert(`✅ ${data.message}`);
+        }
       } else {
         alert(data.message || 'Token ist ungültig');
       }
     } catch (error) {
-      console.error('Token verify error:', error);
+      console.error('Token verify/swap error:', error);
       alert('Token-Verifizierung fehlgeschlagen');
     } finally {
       setVerifying(false);

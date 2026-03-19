@@ -3,6 +3,7 @@ Mint Management for ZapOut
 Multi-mint support like Numo
 """
 
+import logging
 import os
 import sqlite3
 from datetime import datetime, timezone
@@ -11,6 +12,8 @@ from typing import List, Optional
 import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 
 # DB_PATH - use absolute path to avoid circular import
 # Go up 3 levels: app/routers/mints.py -> app/routers -> app -> backend -> project
@@ -497,3 +500,298 @@ async def get_preferred_mint(user_id: int) -> Optional[str]:
     conn.close()
 
     return row[0] if row else None
+
+
+# =============================================================================
+# Swap to Lightning (Numo's Killer Feature)
+# =============================================================================
+import base64
+import json
+import re
+
+
+class SwapRequest(BaseModel):
+    token: str
+
+
+class SwapResponse(BaseModel):
+    success: bool
+    amount_sats: int
+    payment_hash: Optional[str] = None
+    bolt11: Optional[str] = None
+    mint_url: Optional[str] = None
+    message: Optional[str] = None
+
+
+def decode_cashu_token(token: str) -> dict:
+    """
+    Decode a Cashu token to extract mint URL and amount.
+    Supports both cashuA... and cashuB... formats.
+    """
+    try:
+        # Remove cashuA/cashuB prefix if present
+        if token.startswith("cashuA"):
+            encoded = token[7:]
+        elif token.startswith("cashuB"):
+            encoded = token[7:]
+        elif token.startswith("cashu"):
+            # Try to find the actual encoded part
+            match = re.search(r"cashu[AB]?(.*)$", token)
+            if match:
+                encoded = match.group(1)
+            else:
+                encoded = token[5:]
+        else:
+            encoded = token
+
+        # Try to decode as base64
+        try:
+            decoded = base64.urlsafe_b64decode(encoded + "==")
+            data = json.loads(decoded)
+        except Exception:
+            # Try without padding
+            decoded = base64.urlsafe_b64decode(encoded)
+            data = json.loads(decoded)
+
+        # Extract mint URL from proofs or token structure
+        mint_url = None
+        amount_sats = 0
+
+        # Cashu token structure varies, try to extract
+        if isinstance(data, dict):
+            # Look for mint URL in various places
+            mint_url = data.get("mint") or data.get("mintUrl") or data.get("mint_url")
+
+            # Sum up amounts from proofs
+            proofs = data.get("proofs", [])
+            if proofs:
+                amount_sats = sum(p.get("amount", 0) for p in proofs)
+            elif "amount" in data:
+                amount_sats = data["amount"]
+
+        elif isinstance(data, list):
+            # List of proofs
+            amount_sats = sum(p.get("amount", 0) for p in data)
+
+        return {"mint_url": mint_url, "amount_sats": amount_sats, "raw": data}
+    except Exception as e:
+        logger.error(f"Failed to decode token: {e}")
+        return {"mint_url": None, "amount_sats": 0, "raw": None, "error": str(e)}
+
+
+async def is_trusted_mint(user_id: int, mint_url: str) -> bool:
+    """Check if mint is in user's trusted mints"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute(
+        """
+        SELECT 1 FROM user_mints
+        WHERE user_id=? AND mint_url=? AND is_active=1
+        LIMIT 1
+    """,
+        (user_id, mint_url),
+    )
+    row = c.fetchone()
+    conn.close()
+    return row is not None
+
+
+async def get_swap_settings(user_id: int) -> dict:
+    """Get swap settings for user"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute(
+        """
+        SELECT accept_unknown_mints, auto_swap_to_lightning, swap_fee_reserve_max
+        FROM cashu_settings WHERE user_id=?
+    """,
+        (user_id,),
+    )
+    row = c.fetchone()
+    conn.close()
+
+    if row:
+        return {
+            "accept_unknown_mints": bool(row[0]),
+            "auto_swap_to_lightning": bool(row[1]),
+            "swap_fee_reserve_max": row[2],
+        }
+    return {
+        "accept_unknown_mints": True,
+        "auto_swap_to_lightning": True,
+        "swap_fee_reserve_max": 0.05,
+    }
+
+
+async def melt_token_to_ln(mint_url: str, invoice: str, proofs: list) -> dict:
+    """
+    Melt Cashu proofs at mint to pay a Lightning invoice.
+
+    Args:
+        mint_url: The mint's URL
+        invoice: BOLT11 Lightning invoice to pay
+        proofs: List of Cashu proofs to spend
+
+    Returns:
+        Dict with success status and details
+    """
+    try:
+        async with httpx.AsyncClient() as client:
+            # Step 1: Get melt quote (NUT-11)
+            quote_response = await client.post(
+                f"{mint_url}/v1/melt/quote/bolt11",
+                json={"request": invoice},
+                timeout=30,
+            )
+
+            if quote_response.status_code != 200:
+                return {"success": False, "error": f"Mint quote failed: {quote_response.text}"}
+
+            quote_data = quote_response.json()
+            melt_quote_id = quote_data.get("quote_id")
+            amount_sats = quote_data.get("amount", 0)
+            fee_reserve = quote_data.get("fee_reserve", 0)
+
+            # Step 2: Send proofs to mint (NUT-12)
+            melt_response = await client.post(
+                f"{mint_url}/v1/melt",
+                json={
+                    "quote_id": melt_quote_id,
+                    "proofs": proofs,
+                },
+                timeout=30,
+            )
+
+            if melt_response.status_code != 200:
+                return {"success": False, "error": f"Melt failed: {melt_response.text}"}
+
+            melt_data = melt_response.json()
+
+            # Check if payment was successful
+            if melt_data.get("paid"):
+                return {
+                    "success": True,
+                    "amount_sats": amount_sats,
+                    "fee_paid": melt_data.get("fee"),
+                    "preimage": melt_data.get("preimage"),
+                }
+            else:
+                return {"success": False, "error": "Payment not completed", "data": melt_data}
+
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@router.post("/swap", response_model=SwapResponse)
+async def swap_token_to_lightning(
+    request: SwapRequest,
+    user_id: int = Depends(verify_token_inline),
+):
+    """
+    Swap a Cashu token from any mint to Lightning.
+
+    This is Numo's "Killer Feature": Accept payments from ANY Cashu mint,
+    and automatically swap them to Lightning so the merchant receives sats.
+
+    Flow:
+    1. Decode token to get mint URL and amount
+    2. Check if mint is trusted
+    3. If not trusted and auto_swap enabled:
+       a. Create LND invoice for the amount
+       b. Melt the token at the mint (mint pays our invoice)
+       c. Return success with payment details
+    4. If trusted mint, just verify (no swap needed)
+    """
+    # Import LND client
+    try:
+        from app.lnd_client import check_invoice, create_invoice
+    except ImportError:
+        return SwapResponse(success=False, amount_sats=0, message="LND client not available")
+
+    # Decode the token
+    token_data = decode_cashu_token(request.token)
+
+    if not token_data["mint_url"] or token_data["amount_sats"] == 0:
+        return SwapResponse(
+            success=False,
+            amount_sats=0,
+            message=f"Could not decode token: {token_data.get('error', 'Unknown error')}",
+        )
+
+    mint_url = token_data["mint_url"]
+    amount_sats = token_data["amount_sats"]
+
+    # Check if mint is trusted
+    trusted = await is_trusted_mint(user_id, mint_url)
+    swap_settings = await get_swap_settings(user_id)
+
+    if trusted:
+        # Trusted mint - no swap needed, just verify
+        return SwapResponse(
+            success=True,
+            amount_sats=amount_sats,
+            mint_url=mint_url,
+            message="Trusted mint - no swap needed",
+        )
+
+    # Unknown mint - check if we accept unknown mints
+    if not swap_settings["accept_unknown_mints"]:
+        return SwapResponse(
+            success=False,
+            amount_sats=amount_sats,
+            mint_url=mint_url,
+            message="Unknown mint not accepted. Please add this mint first.",
+        )
+
+    # Auto-swap to Lightning
+    if not swap_settings["auto_swap_to_lightning"]:
+        return SwapResponse(
+            success=False,
+            amount_sats=amount_sats,
+            mint_url=mint_url,
+            message="Auto-swap to Lightning is disabled. Enable it in Mint Settings.",
+        )
+
+    # Create LND invoice to receive the sats
+    try:
+        invoice = create_invoice(
+            amount_sats=amount_sats,
+            memo=f"Swap from {mint_url[:30]}...",
+        )
+        bolt11 = invoice["payment_request"]
+        payment_hash = invoice["payment_hash"]
+    except Exception as e:
+        return SwapResponse(
+            success=False,
+            amount_sats=amount_sats,
+            mint_url=mint_url,
+            message=f"Failed to create Lightning invoice: {str(e)}",
+        )
+
+    # Extract proofs from token
+    proofs = []
+    raw_data = token_data.get("raw", {})
+    if isinstance(raw_data, dict):
+        proofs = raw_data.get("proofs", [])
+    elif isinstance(raw_data, list):
+        proofs = raw_data
+
+    # Melt the token at the mint (pay our LND invoice)
+    melt_result = await melt_token_to_ln(mint_url, bolt11, proofs)
+
+    if melt_result["success"]:
+        return SwapResponse(
+            success=True,
+            amount_sats=melt_result["amount_sats"],
+            payment_hash=payment_hash,
+            bolt11=bolt11,
+            mint_url=mint_url,
+            message=f"Swapped {amount_sats} sats from {mint_url[:40]}... to Lightning!",
+        )
+    else:
+        return SwapResponse(
+            success=False,
+            amount_sats=amount_sats,
+            mint_url=mint_url,
+            message=f"Swap failed: {melt_result.get('error', 'Unknown error')}",
+        )
