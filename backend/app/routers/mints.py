@@ -3,18 +3,53 @@ Mint Management for ZapOut
 Multi-mint support like Numo
 """
 
+import os
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
-from main import DB_PATH, verify_token
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
-from sqlalchemy.ext.declarative import declarative_base
+
+# DB_PATH - use absolute path to avoid circular import
+# Go up 3 levels: app/routers/mints.py -> app/routers -> app -> backend -> project
+BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+DB_PATH = os.path.join(BACKEND_DIR, "zapout.db")
 
 router = APIRouter(prefix="/cashu", tags=["cashu"])
+
+
+# =============================================================================
+# Token verification (inlined to avoid circular import)
+# =============================================================================
+def verify_token_inline(authorization: str = Header(None)) -> int:
+    """Verify token from Authorization header"""
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Missing Authorization header")
+
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Invalid token format")
+
+    token = authorization.replace("Bearer ", "")
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT user_id, expires_at FROM tokens WHERE token = ?", (token,))
+    row = c.fetchone()
+    conn.close()
+
+    if not row:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    user_id, expires_at = row
+
+    if expires_at:
+        exp = datetime.fromisoformat(expires_at)
+        if datetime.now(timezone.utc) > exp:
+            raise HTTPException(status_code=401, detail="Token expired")
+
+    return user_id
 
 
 # =============================================================================
@@ -100,7 +135,7 @@ class CashuSettings(BaseModel):
 # Mint Management Endpoints
 # =============================================================================
 @router.get("/mints", response_model=List[MintInfo])
-async def list_mints(user_id: int = Depends(verify_token)):
+async def list_mints(user_id: int = Depends(verify_token_inline)):
     """
     List all mints connected to user's account
     Like Numo's mint settings UI
@@ -140,7 +175,7 @@ async def list_mints(user_id: int = Depends(verify_token)):
 
 
 @router.post("/mints", response_model=MintInfo)
-async def add_mint(request: MintAddRequest, user_id: int = Depends(verify_token)):
+async def add_mint(request: MintAddRequest, user_id: int = Depends(verify_token_inline)):
     """
     Add a new mint to user's account
     Like Numo's "+ Mint hinzufügen"
@@ -193,7 +228,7 @@ async def add_mint(request: MintAddRequest, user_id: int = Depends(verify_token)
 
 @router.put("/mints/{mint_id}", response_model=MintInfo)
 async def update_mint(
-    mint_id: int, request: MintUpdateRequest, user_id: int = Depends(verify_token)
+    mint_id: int, request: MintUpdateRequest, user_id: int = Depends(verify_token_inline)
 ):
     """
     Update mint settings
@@ -278,7 +313,7 @@ async def update_mint(
 
 
 @router.delete("/mints/{mint_id}")
-async def remove_mint(mint_id: int, user_id: int = Depends(verify_token)):
+async def remove_mint(mint_id: int, user_id: int = Depends(verify_token_inline)):
     """Remove a mint from user's account"""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -296,7 +331,7 @@ async def remove_mint(mint_id: int, user_id: int = Depends(verify_token)):
 
 
 @router.post("/mints/{mint_id}/refresh-balance")
-async def refresh_mint_balance(mint_id: int, user_id: int = Depends(verify_token)):
+async def refresh_mint_balance(mint_id: int, user_id: int = Depends(verify_token_inline)):
     """Refresh balance for a specific mint"""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -320,7 +355,7 @@ async def refresh_mint_balance(mint_id: int, user_id: int = Depends(verify_token
 
 
 @router.get("/balance/all")
-async def get_total_balance(user_id: int = Depends(verify_token)):
+async def get_total_balance(user_id: int = Depends(verify_token_inline)):
     """
     Get total Cashu balance across all mints
     Like Numo's total balance display
@@ -352,7 +387,7 @@ async def get_total_balance(user_id: int = Depends(verify_token)):
 # Cashu Settings Endpoints
 # =============================================================================
 @router.get("/settings", response_model=CashuSettings)
-async def get_cashu_settings(user_id: int = Depends(verify_token)):
+async def get_cashu_settings(user_id: int = Depends(verify_token_inline)):
     """Get user's Cashu settings"""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -379,7 +414,9 @@ async def get_cashu_settings(user_id: int = Depends(verify_token)):
 
 
 @router.put("/settings", response_model=CashuSettings)
-async def update_cashu_settings(settings: CashuSettings, user_id: int = Depends(verify_token)):
+async def update_cashu_settings(
+    settings: CashuSettings, user_id: int = Depends(verify_token_inline)
+):
     """Update user's Cashu settings"""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
