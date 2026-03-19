@@ -32,6 +32,8 @@ Phase 5: Backup/Recovery      ░░░░░░░░░░░░░░   0% �
 Phase 6: Employee Roles       ░░░░░░░░░░░░░░   0% ⏸️
 Phase 7: POS Optimization     ░░░░░░░░░░░░░░   0% ⏸️
 Phase 8: External Integrations░░░░░░░░░░░░░   0% 🟡
+SEC-001: Assertion Verify      ░░░░░░░░░░░░░░   0% 🔴
+WAL-001: Per-User Wallets     ░░░░░░░░░░░░░░   0% 🔴
 ```
 
 ### Implemented Steps
@@ -43,6 +45,18 @@ Phase 8: External Integrations░░░░░░░░░░░░░   0% 🟡
 | 2    | Passkey Registration        | ✅     | 19.03.2026 |
 | 3    | LND Integration             | ✅     | 19.03.2026 |
 | 4    | PRF Key Derivation          | ✅     | 19.03.2026 |
+
+### Security Improvements (For Production)
+
+> ⚠️ Diese Features sind für Production-Release geplant.
+> Details: [`docs/FEATURES.md`](docs/FEATURES.md)
+
+| Ticket    | Feature                         | Priority | Status             |
+| --------- | ------------------------------- | -------- | ------------------ |
+| `SEC-001` | WebAuthn Assertion Verification | 🔴 HIGH  | ⚠️ Not implemented |
+| `WAL-001` | Per-User Watch-Only Wallets     | 🔴 HIGH  | ⚠️ Not implemented |
+| `REC-001` | Seed Recovery System            | 🟡 MED   | ❌ Not planned     |
+| `DEV-001` | Multi-Device Support            | 🟢 LOW   | ❌ Not planned     |
 
 ---
 
@@ -57,6 +71,51 @@ Phase 8: External Integrations░░░░░░░░░░░░░   0% 🟡
 | Balance Display      | ✅     | Must     |
 | Watch-Only Import    | ⏳     | Should   |
 | Address Generation   | ⏳     | Should   |
+
+### Phase 3.1: Security Improvements (0%)
+
+> ⚠️ **Für Production-Release erforderlich**
+> Details: [`docs/FEATURES.md`](docs/FEATURES.md)
+
+| Feature                             | Status  | Priority |
+| ----------------------------------- | ------- | -------- |
+| **SEC-001: Assertion Verification** | 🔴 HIGH | Must     |
+| **WAL-001: Per-User Watch-Only**    | 🔴 HIGH | Must     |
+| REC-001: Seed Recovery              | 🟡 MED  | Should   |
+| DEV-001: Multi-Device Support       | 🟢 LOW  | Nice     |
+
+**SEC-001: Assertion Verification**
+
+```python
+# Aktuell (UNSICHER):
+def prf_login(data: PRFLoginRequest):
+    credential = db.query(...).first()
+    return {"token": create_token(...)}  # Keine Verifizierung!
+
+# Ziel (SICHER):
+def prf_login(data: PRFLoginRequest):
+    # 1. Client Data JSON verifizieren
+    client_data = verify_client_data(data.credential.response.clientDataJSON)
+
+    # 2. Authenticator Data parsen
+    auth_data = parse_auth_data(data.credential.response.authenticatorData)
+
+    # 3. Signatur mit Public Key verifizieren
+    verify_signature(auth_data, client_data, credential.public_key)
+
+    return {"token": create_token(...)}
+```
+
+**WAL-001: Per-User Watch-Only Wallets**
+
+```
+Aktuell (SHARED):              Ziel (PER-USER):
+User A ──┐                     User A ──► Watch-Only-A (pubkey)
+User B ──┼──► Helmut LND      User B ──► Watch-Only-B (pubkey)
+User C ──┘                     User C ──► Watch-Only-C (pubkey)
+                               │
+                               └──► Alle → Helmut LND (via Submarine Swap)
+```
 
 ### Phase 3.5: Cashu Management (NEW - 0%)
 
@@ -619,6 +678,12 @@ Offline: Service Worker cache
 ---
 
 ## 11. Changelog
+
+### v5.1 (19.03.2026)
+
+- **NEU:** `docs/FEATURES.md` - Security & Wallet Feature Requests
+- **NEU:** Phase 3.1: Security Improvements (SEC-001, WAL-001)
+- **UPDATE:** Current Status mit Security-Tickets
 
 ### v5.0 (19.03.2026)
 
