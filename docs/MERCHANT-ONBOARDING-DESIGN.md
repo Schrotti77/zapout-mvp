@@ -159,14 +159,13 @@ Dieses Dokument beschreibt den kompletten Onboarding-Prozess für Händler bei Z
 ```
 4.1  Lightning-Setup
      ┌──────────────────────────────────────────┐
-     │  Lightning Wallet verbinden:             │
+     │  Dein Lightning Wallet:                  │
      │                                          │
-     │  [ ] Breez SDK (empfohlen)              │
-     │  [ ] Eigener LND Node                   │
-     │  [ ] LNbits (Helmut)                    │
+     │  ✓ Helmut Server (SynapseLN)            │
+     │    Selbst-gehostet, volle Kontrolle     │
      │                                          │
-     │  Verbinde dich mit deinem Helmut-Server  │
-     │  für selbst-gehostete Lightning!         │
+     │  Wallet-Typ: Watch-Only                │
+     │  (Keys bleiben auf deinem Gerät)        │
      └──────────────────────────────────────────┘
 
 4.2  Cashu Mint (optional)
@@ -323,19 +322,19 @@ Lösung:
 ### 4.3 Szenario: Helmut-Server nicht erreichbar
 
 ```
-Problem: LNbits auf Helmut ist down
+Problem: Helmut Server ist down
 
 Lösung:
 ┌──────────────────────────────────────────┐
 │  Automatische Fallback-Strategie:       │
 │                                          │
 │  1. ZapOut erkennt: Helmut unreachable   │
-│  2. Schaltet auf Breez SDK Fallback     │
-│  3. Lightning funktioniert weiter       │
-│  4. Cashu bis Server wieder da: deaktiviert│
-│  5. Benachrichtigung an Händler         │
-│  6. Nach Server-Wiederherstellung:      │
-│     Cashu automatisch reaktiviert        │
+│  2. Zeigt "Server offline" Meldung      │
+│  3. Cashu bis Server wieder da: nur     │
+│     lokale Token (kein Lightning)        │
+│  4. Benachrichtigung an Händler         │
+│  5. Nach Server-Wiederherstellung:      │
+│     Automatisch wieder verbunden         │
 └──────────────────────────────────────────┘
 ```
 
