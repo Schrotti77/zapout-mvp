@@ -464,23 +464,209 @@ async function createCloudBackup(walletKey, passkey) {
 
 ---
 
-## 8. Offene Fragen / Diskussionsbedarf
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                  MULTI-DEVICE BACKUP MODEL                       │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│    ┌─────────────────┐         ┌─────────────────┐            │
+│    │   TABLET        │  ←──→   │   PHONE         │            │
+│    │   (Haupt-POS)   │  Sync   │   (Backup-POS)   │            │
+│    │                 │         │                 │            │
+│    │  • Vollständiger│         │  • Eingeschränkter│           │
+│    │    POS-Zugang   │         │    POS-Zugang    │           │
+│    │  • Volle Keys   │         │  • Volle Keys    │           │
+│    │  • Alle         │         │  • Kein Setup,   │           │
+│    │    Einstellungen │         │    nur Zahlung   │           │
+│    └─────────────────┘         └─────────────────┘            │
+│            │                                                     │
+│            │              Szenario:                             │
+│            │              Tablet defekt/gestohlen              │
+│            ▼                                                     │
+│    ┌─────────────────────────────────────────────────┐          │
+│    │  Phone wird zum Hauptgerät                      │          │
+│    │  → Backup-Keys funktionieren                   │          │
+│    │  → Temporär: alle Features                     │          │
+│    │  → Neues Tablet: Backup restore               │          │
+│    └─────────────────────────────────────────────────┘          │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-- [ ] **Multi-Device:** Sollen Händler ZapOut auf mehreren Geräten nutzen können?
-- [ ] **Team-Feature:** Können mehrere Mitarbeiter das gleiche Wallet nutzen?
-- [ ] **Hardware-Wallet:** Soll ZapOut mit Ledger/Trezor integriert werden können?
-- [ ] **Insurance:** Soll es eine optionale Versicherung gegen Key-Verlust geben?
-- [ ] **Migration von bestehenden Wallets:** Können Händler ihr bestehendes LND-Wallet importieren?
+### 8.1 Geräte-Rollen
+
+| Gerät          | Rolle      | Zugriff        | Keys        |
+| -------------- | ---------- | -------------- | ----------- |
+| Tablet         | Haupt-POS  | Alle Features  | Vollständig |
+| Phone (Backup) | Backup-POS | Nur Zahlungen  | Vollständig |
+| Neues Tablet   | Recovery   | Setup Required | Aus Backup  |
+
+### 8.2 Backup-Ebenen (aktualisiert)
+
+```
+Level 3: Metall-Backup (max)
+Level 2: Phone-Backup (Zweites Gerät) ← NEU
+Level 1: Cloud-Backup (Verschlüsselt)
+Level 0: Tablet Only (Kein Backup!)
+```
+
+### 8.3 Phone als Backup-POS
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│              BACKUP-PHONE KONZEPT                                │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  Setup (einmalig):                                             │
+│  1. ZapOut auf Phone installieren                              │
+│  2. "Backup-Gerät einrichten" wählen                           │
+│  3. QR-Code vom Tablet scannen                                 │
+│  4. Keys werden verschlüsselt übertragen                      │
+│  5. Fertig!                                                    │
+│                                                                 │
+│  Nutzung (Backup-Modus):                                       │
+│  ✓ POS-Screen (Zahlungen empfangen)                           │
+│  ✓ QR-Code anzeigen                                            │
+│  ✓ Transaktionshistorie (lesen)                               │
+│  ✗ Einstellungen ändern                                       │
+│  ✗ Keys exportieren                                           │
+│  ✗ Neues Backup-Gerät hinzufügen                              │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## 9. Nächste Schritte
+## 9. Mitarbeiterberechtigungen (Rollen)
 
-1. **Design Review** mit Marian → Feedback zu diesem Dokument
+### 9.1 Rollen-Modell
+
+| Rolle        | Beschreibung                                              |
+| ------------ | --------------------------------------------------------- |
+| **Owner**    | Der Händler, der das Wallet erstellt hat. Voller Zugriff. |
+| **Employee** | Mitarbeiter, der nur POS bedienen kann. Keine Keys/Setup. |
+
+### 9.2 Berechtigungs-Matrix
+
+| Feature                     | Owner | Employee |
+| --------------------------- | ----- | -------- |
+| POS-Screen nutzen           | ✅    | ✅       |
+| Zahlungen empfangen         | ✅    | ✅       |
+| Transaktionshistorie        | ✅    | ✅       |
+| Tagesberichte ansehen       | ✅    | ✅       |
+| **Einstellungen ändern**    | ✅    | ❌       |
+| **Backup verwalten**        | ✅    | ❌       |
+| **Neue Employees einladen** | ✅    | ❌       |
+| **LND Wallet verwalten**    | ✅    | ❌       |
+| **Keys exportieren**        | ✅    | ❌       |
+| **ZapOut deinstallieren**   | ✅    | ❌       |
+
+### 9.3 Employee-Onboarding
+
+```
+Owner: Einstellungen → Team → Mitarbeiter einladen (Email/NFC)
+
+Employee:
+1. Einladungslink öffnen
+2. ZapOut installieren (falls nicht vorhanden)
+3. Fingerabdruck/Face ID für POS-Nutzung
+4. Fertig!
+
+Wichtig:
+• Employee hat KEINE eigenen Keys (nutzt Owner's Wallet)
+• Employee kann nur POS bedienen, nichts ändern
+• Owner kann Employee-Zugang jederzeit widerrufen
+• Employee braucht KEIN Paper-Backup (nicht sein Wallet)
+```
+
+---
+
+## 10. LND Wallet Import (Diskussionsbedarf)
+
+### 10.1 Offene Fragen
+
+| Frage                                      | Optionen                                                           |
+| ------------------------------------------ | ------------------------------------------------------------------ |
+| **Wer erstellt das LND Wallet?**           | A: ZapOut automatisch / B: Import bestehendes / C: Beides          |
+| **Wann wird das Wallet erstellt?**         | A: Bei Onboarding / B: Separater Schritt / C: Owner entscheidet    |
+| **Was passiert mit bestehenden Channels?** | Importierte Wallets haben evtl. schon Channels                     |
+| **LND auf Helmut oder extern?**            | A: Helmut (empfohlen) / B: Beliebiger Server / C: LND-as-a-Service |
+
+### 10.2 Vorschlag: 3 Wege zum Wallet
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│              LND WALLET ERSTELLUNG - 3 WEGE                      │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  WEG 1: "Sofort starten" (Empfohlen für Neulinge)              │
+│  ─────────────────────────────────────────────────────────────│
+│  ZapOut erstellt automatisch ein neues LND Wallet auf dem     │
+│  Helmut-Server. Sofort einsatzbereit.                          │
+│                                                                 │
+│  WEG 2: "Mein Helmut" (Für bestehende Helmut-Nutzer)          │
+│  ─────────────────────────────────────────────────────────────│
+│  Händler hat bereits Helmut → ZapOut verbindet sich damit.    │
+│  Bestehende Channels werden übernommen.                         │
+│                                                                 │
+│  WEG 3: "Externes LND" (Für Power-User)                       │
+│  ─────────────────────────────────────────────────────────────│
+│  LND auf beliebigem Server (Umbrel, RaspiBlitz, Cloud).       │
+│  Connection String / QR-Code eingeben.                         │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 10.3 Wallet-Erstellung Timeline
+
+```
+ONBOARDING FLOW:
+
+Passkey Setup → Backup Auswählen → Wallet Art? → Go Live!
+                                    ├── Option A: Auto-create (→ Helmut)
+                                    ├── Option B: Import Existing
+                                    └── Option C: Connect External
+```
+
+---
+
+## 11. Hardware-Wallet (Deferred)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│              HARDWARE WALLET - DEFERRED                         │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  Status: Für später geplant                                    │
+│                                                                 │
+│  Consideration List:                                            │
+│  • Ledger Integration (NFC oder USB)                          │
+│  • Trezor Integration (USB)                                   │
+│  • Passkey + Hardware Wallet Kombination                      │
+│  • BIP-44 Compliance                                           │
+│                                                                 │
+│  Priorität: NIEDRIG (kommt nach MVP)                          │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 12. Zusammenfassung: Geänderte Punkte
+
+- [x] **Multi-Device:** ✅ Tablet = Haupt, Phone = Backup-POS
+- [x] **Mitarbeiter-Rollen:** ✅ Owner vs Employee Permissions
+- [x] **Backup-Pyramide:** ✅ Phone-Backup als Level 2 ergänzt
+- [ ] **LND Wallet Erstellung:** ❓ Noch nicht entschieden (3 Wege)
+- [x] **Hardware Wallet:** Deferred für später
+
+---
+
+## 13. Nächste Schritte
+
+1. **LND-Konzept finalisieren** → Entscheidung: Sofort vs. Import
 2. **UX-Prototyping** → Interaktiver Flow für Onboarding
-3. **Tech Spike** → Passkey-Registrierung + Key Derivation testen
-4. **Backend-Design** → Nostr-Relay-Anbindung, Salt-Storage
+3. **Backend-Design** → Multi-Device Sync, Role-Based Access
+4. **Tech Spike** → Passkey-Registrierung + Key Derivation testen
 
----
-
-_Letzte Änderung: 19.03.2026_
+_Letzte Änderung: 19.03.2026 (Update: Multi-Device, Roles, LND)_
