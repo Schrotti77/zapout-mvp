@@ -167,7 +167,7 @@ const cashuButtonStyle = {
   border: '1px solid rgba(255, 184, 116, 0.2)',
 };
 
-export default function POSScreen({ onBack }) {
+export default function POSScreen({ onBack, onPaymentRequest }) {
   const { t } = useTranslation();
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
@@ -324,7 +324,11 @@ export default function POSScreen({ onBack }) {
       });
 
       const data = await response.json();
-      setPaymentRequest(data);
+
+      // Navigate to Payment Request Screen
+      if (onPaymentRequest && data.bolt11) {
+        onPaymentRequest(data.order_id || data.id, data.amount_sats, data.bolt11);
+      }
     } catch (error) {
       console.error('Payment error:', error);
     } finally {

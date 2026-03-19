@@ -10,6 +10,7 @@ import POSScreen from './screens/POSScreen';
 import AuthScreen from './screens/AuthScreen';
 import PasskeyAuthScreen from './screens/PasskeyAuthScreen';
 import MintSettingsScreen from './screens/MintSettingsScreen';
+import PaymentRequestScreen from './screens/PaymentRequestScreen';
 import CartDrawer from './components/CartDrawer';
 import Layout, { ScreenCard, PageTitle, SectionTitle } from './components/ui/Layout';
 import { useTranslation } from 'react-i18next';
@@ -33,6 +34,7 @@ function App() {
   const [selectedMint, setSelectedMint] = useState('https://testnut.cashu.space');
   const [cashuTokens, setCashuTokens] = useState([]);
   const [cartOpen, setCartOpen] = useState(false);
+  const [paymentRequest, setPaymentRequest] = useState(null); // { orderId, amountSats, bolt11 }
 
   // Cashu improvements
 
@@ -133,7 +135,31 @@ function App() {
 
   // POS Screen
   if (screen === 'pos') {
-    return <POSScreen onBack={() => setScreen('settings')} />;
+    return (
+      <POSScreen
+        onBack={() => setScreen('settings')}
+        onPaymentRequest={(orderId, amountSats, bolt11) => {
+          setPaymentRequest({ orderId, amountSats, bolt11 });
+          setScreen('payment-request');
+        }}
+      />
+    );
+  }
+
+  // Payment Request Screen (QR Code)
+  if (screen === 'payment-request') {
+    return (
+      <PaymentRequestScreen
+        orderId={paymentRequest?.orderId}
+        amountSats={paymentRequest?.amountSats}
+        bolt11={paymentRequest?.bolt11}
+        onBack={() => setScreen('pos')}
+        onPaid={() => {
+          setPaymentRequest(null);
+          setScreen('dashboard');
+        }}
+      />
+    );
   }
 
   // Cashu Screen
