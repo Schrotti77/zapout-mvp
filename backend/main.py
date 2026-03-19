@@ -1421,12 +1421,15 @@ def melt_cashu_tokens(request: dict, user_id: int = Depends(verify_token)):
 def create_merchant_payment_request(request: dict, user_id: int = Depends(verify_token)):
     """Create a payment request for quick merchant payments"""
     amount_cents = request.get("amount_cents")
-    method = request.get("method", "cashu")
+    method = request.get("method", "lightning")  # Default zu Lightning
 
     if not amount_cents:
         raise HTTPException(400, "amount_cents required")
 
-    # For now, use a simple approach - create order and return mock
+    # EUR zu Sats Konvertierung (ca. 1 cent = 10 sats bei ~60k BTC)
+    amount_sats = amount_cents * 10
+
+    # Create order
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute(
@@ -1435,14 +1438,37 @@ def create_merchant_payment_request(request: dict, user_id: int = Depends(verify
     )
     order_id = c.lastrowid
     conn.commit()
+
+    # Create Lightning invoice via LND
+    bolt11 = ""
+    payment_hash = ""
+    if method == "lightning":
+        lnd_result = create_lnd_invoice(amount_sats, f"ZapOut_Payment_{order_id}")
+
+        if "error" in lnd_result:
+            # LND failed, return error
+            conn.close()
+            raise HTTPException(500, f"Lightning invoice failed: {lnd_result['error']}")
+
+        bolt11 = lnd_result.get("payment_request", "")
+        payment_hash = lnd_result.get("r_hash", "")
+
+        c.execute(
+            "UPDATE orders SET lightning_invoice=?, payment_hash=? WHERE id=?",
+            (bolt11, payment_hash, order_id),
+        )
+        conn.commit()
+
     conn.close()
 
     return {
         "quote_id": f"quote_{order_id}",
         "order_id": order_id,
         "amount_cents": amount_cents,
-        "amount_sats": amount_cents * 10,
-        "invoice": f"cashu://quote_{order_id}",
+        "amount_sats": amount_sats,
+        "bolt11": bolt11,
+        "payment_hash": payment_hash,
+        "method": method,
         "paid": False,
     }
 
