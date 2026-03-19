@@ -97,15 +97,28 @@ Phase 7: POS Optimierung    ░░░░░░░░░░░░░░░   0% �
 | Split Payment (LN + Cashu)   | ⏸️     | Nice     |
 | Tagesbericht                 | ⏸️     | Should   |
 
+### Phase 3.5: External Integrations (NEW)
+
+| Feature                      | Status         | Priority |
+| ---------------------------- | -------------- | -------- |
+| **Bringin EUR Settlement**   | 📋 Design Done | 🔴 HIGH  |
+| Bringin Wallet Connection UI | ❌             | 🔴 HIGH  |
+| Auto-Settlement (EUR)        | ❌             | 🟡 MED   |
+| On-Ramp (EUR → BTC)          | ❌             | 🟡 MED   |
+| **Numo NFC Bridge**          | 📋 Design Done | 🟡 MED   |
+| Numo Deep Link               | ❌             | 🟡 MED   |
+| Numo WebNFC Reader           | ❌             | 🟡 MED   |
+
 ### Phase 8: Advanced (Backlog)
 
-| Feature               | Status | Priority |
-| --------------------- | ------ | -------- |
-| Nostr NIP-57 Receipts | ⏸️     | Nice     |
-| LNbits Integration    | ⏸️     | Nice     |
-| Numo NFC Bridge       | ⏸️     | Nice     |
-| Offline-Modus         | ⏸️     | Nice     |
-| Multi-Location        | ⏸️     | Nice     |
+| Feature                | Status | Priority |
+| ---------------------- | ------ | -------- |
+| Nostr NIP-57 Receipts  | ⏸️     | Nice     |
+| LNbits Integration     | ⏸️     | Nice     |
+| Numo NFC Bridge        | 📋     | 🟡 MED   |
+| Offline-Modus          | ⏸️     | Nice     |
+| Multi-Location         | ⏸️     | Nice     |
+| Bringin EUR Settlement | 📋     | 🔴 HIGH  |
 
 ---
 
@@ -124,12 +137,13 @@ Phase 7: POS Optimierung    ░░░░░░░░░░░░░░░   0% �
 
 ### Planned
 
-| Layer    | Technology                       |
-| -------- | -------------------------------- |
-| Payments | LND Watch-Only + Hardware Wallet |
-| Backup   | Nostr Relays (encrypted)         |
-| Receipts | Nostr NIP-57                     |
-| NFC      | Numo Bridge Integration          |
+| Layer      | Technology                       |
+| ---------- | -------------------------------- |
+| Payments   | LND Watch-Only + Hardware Wallet |
+| Backup     | Nostr Relays (encrypted)         |
+| Receipts   | Nostr NIP-57                     |
+| NFC        | Numo Bridge Integration          |
+| Settlement | **Bringin** (EUR Auszahlung)     |
 
 ---
 
