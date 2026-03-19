@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { QRCodeSVG } from 'qrcode.react';
+import BasketListModal from '../components/BasketListModal';
 
 const API_URL = 'http://localhost:8000';
 
@@ -157,6 +158,7 @@ export default function POSScreen({ onBack }) {
   const [btcPrice, setBtcPrice] = useState(null);
   const [tipPercent, setTipPercent] = useState(0);
   const [customTip, setCustomTip] = useState('');
+  const [showBasketModal, setShowBasketModal] = useState(false);
 
   const tipOptions = [
     { label: '0%', value: 0 },
@@ -243,6 +245,14 @@ export default function POSScreen({ onBack }) {
     setCart([]);
     setTipPercent(0);
     setCustomTip('');
+  };
+
+  const handleLoadBasket = (items, total) => {
+    setCart(items);
+    // Optionally recalculate tip based on new total
+    if (tipPercent > 0) {
+      // Keep tip percentage but it will recalculate on next render
+    }
   };
 
   const formatPrice = cents => {
@@ -781,7 +791,34 @@ export default function POSScreen({ onBack }) {
           >
             {t('pos.clearCart') || 'Warenkorb leeren'}
           </button>
+
+          <button
+            onClick={() => setShowBasketModal(true)}
+            style={{
+              width: '100%',
+              marginTop: '8px',
+              padding: '8px',
+              backgroundColor: '#1a1a1a',
+              color: '#f7931a',
+              border: '1px solid #333',
+              borderRadius: '8px',
+              fontSize: '12px',
+              cursor: 'pointer',
+            }}
+          >
+            🧺 Gespeicherte Warenkörbe
+          </button>
         </div>
+      )}
+
+      {/* Basket List Modal */}
+      {showBasketModal && (
+        <BasketListModal
+          onClose={() => setShowBasketModal(false)}
+          onLoadBasket={handleLoadBasket}
+          cartItems={cart}
+          cartTotal={grandTotalCents}
+        />
       )}
     </div>
   );

@@ -319,6 +319,22 @@ def init_db():
     """
     )
 
+    # Baskets table - persistent carts that can be saved and reused
+    c.execute(
+        """
+        CREATE TABLE IF NOT EXISTS baskets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            items TEXT NOT NULL DEFAULT '[]',
+            total_cents INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    """
+    )
+
     conn.commit()
     conn.close()
 
@@ -344,6 +360,18 @@ class TokenResponse(BaseModel):
     token: str
     user_id: int
     email: str
+
+
+class BasketCreate(BaseModel):
+    name: str
+    items: list = []
+    total_cents: int = 0
+
+
+class BasketUpdate(BaseModel):
+    name: str
+    items: list = []
+    total_cents: int = 0
 
 
 class PaymentCreate(BaseModel):
@@ -1051,6 +1079,158 @@ def delete_product(product_id: int, user_id: int = Depends(verify_token)):
     conn.commit()
     conn.close()
     return {"success": True}
+
+
+# ============================================
+# BASKETS - Persistent carts that can be saved and reused
+# ============================================
+
+
+@app.get("/baskets")
+def get_baskets(user_id: int = Depends(verify_token)):
+    """Get all baskets for user"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute(
+        """
+        SELECT id, name, items, total_cents, created_at, updated_at
+        FROM baskets WHERE user_id=? ORDER BY updated_at DESC
+        """,
+        (user_id,),
+    )
+    rows = c.fetchall()
+    conn.close()
+
+    baskets = []
+    for r in rows:
+        baskets.append(
+            {
+                "id": r[0],
+                "name": r[1],
+                "items": json.loads(r[2]) if r[2] else [],
+                "total_cents": r[3],
+                "created_at": r[4],
+                "updated_at": r[5],
+            }
+        )
+    return {"baskets": baskets}
+
+
+@app.post("/baskets")
+def create_basket(basket: BasketCreate, user_id: int = Depends(verify_token)):
+    """Save current cart as a basket"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute(
+        """
+        INSERT INTO baskets (user_id, name, items, total_cents)
+        VALUES (?, ?, ?, ?)
+        """,
+        (user_id, basket.name, json.dumps(basket.items), basket.total_cents),
+    )
+    basket_id = c.lastrowid
+    conn.commit()
+    conn.close()
+
+    return {"id": basket_id, "success": True}
+
+
+@app.get("/baskets/{basket_id}")
+def get_basket(basket_id: int, user_id: int = Depends(verify_token)):
+    """Get a specific basket"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute(
+        """
+        SELECT id, name, items, total_cents, created_at, updated_at
+        FROM baskets WHERE id=? AND user_id=?
+        """,
+        (basket_id, user_id),
+    )
+    r = c.fetchone()
+    conn.close()
+
+    if not r:
+        raise HTTPException(404, "Basket not found")
+
+    return {
+        "id": r[0],
+        "name": r[1],
+        "items": json.loads(r[2]) if r[2] else [],
+        "total_cents": r[3],
+        "created_at": r[4],
+        "updated_at": r[5],
+    }
+
+
+@app.put("/baskets/{basket_id}")
+def update_basket(basket_id: int, basket: BasketUpdate, user_id: int = Depends(verify_token)):
+    """Update a basket"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute(
+        """
+        UPDATE baskets SET name=?, items=?, total_cents=?, updated_at=CURRENT_TIMESTAMP
+        WHERE id=? AND user_id=?
+        """,
+        (basket.name, json.dumps(basket.items), basket.total_cents, basket_id, user_id),
+    )
+    conn.commit()
+    conn.close()
+    return {"success": True}
+
+
+@app.delete("/baskets/{basket_id}")
+def delete_basket(basket_id: int, user_id: int = Depends(verify_token)):
+    """Delete a basket"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("DELETE FROM baskets WHERE id=? AND user_id=?", (basket_id, user_id))
+    conn.commit()
+    conn.close()
+    return {"success": True}
+
+
+@app.post("/baskets/{basket_id}/load")
+def load_basket(basket_id: int, user_id: int = Depends(verify_token)):
+    """Load basket items into current cart (clears existing cart)"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute(
+        """
+        SELECT items, total_cents FROM baskets WHERE id=? AND user_id=?
+        """,
+        (basket_id, user_id),
+    )
+    r = c.fetchone()
+    conn.close()
+
+    if not r:
+        raise HTTPException(404, "Basket not found")
+
+    items = json.loads(r[0]) if r[0] else []
+    total_cents = r[1]
+
+    # Clear current cart and add basket items
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("DELETE FROM cart_items WHERE user_id=?", (user_id,))
+
+    for item in items:
+        c.execute(
+            """
+            INSERT INTO cart_items (user_id, product_id, quantity) VALUES (?, ?, ?)
+            """,
+            (user_id, item["product_id"], item["quantity"]),
+        )
+    conn.commit()
+    conn.close()
+
+    return {
+        "success": True,
+        "items": items,
+        "total_cents": total_cents,
+    }
 
 
 def create_payment(payment: PaymentCreate, user_id: int = Depends(verify_token)):

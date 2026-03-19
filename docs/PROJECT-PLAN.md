@@ -194,8 +194,8 @@ Cross-Mint Swap (Token von Mint X → Lightning) erfordert:
 
 | Feature                     | Status | Priority | Quelle |
 | --------------------------- | ------ | -------- | ------ |
-| **Tips (+10%, +15%, +20%)** | ❌     | 🔴 HIGH  | Numo   |
-| **Product Catalogs**        | ❌     | 🔴 HIGH  | Numo   |
+| **Tips (+10%, +15%, +20%)** | ✅     | 🔴 HIGH  | Numo   |
+| **Product Catalogs**        | ✅     | 🔴 HIGH  | Numo   |
 | **Basket System**           | ❌     | 🟡 MED   | Numo   |
 | POS-Kassenoberfläche        | ⏸️     | Must     | -      |
 | Produkt-Kategorien          | ⏸️     | Must     | -      |
