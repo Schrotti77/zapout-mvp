@@ -19,7 +19,8 @@ import bcrypt
 from app import auth_passkey  # Passkey auth module
 
 # Import routers
-from app.routers import transactions
+from app.routers import mints, transactions
+from app.routers.mints import router as mints_router
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, validator
@@ -223,6 +224,7 @@ app = FastAPI(title="ZapOut API", version="0.1.0")
 # Register routers
 app.include_router(transactions.router)
 app.include_router(auth_passkey.router)  # Passkey authentication
+app.include_router(mints_router)  # Mint Management
 
 # CORS - Restricted to known origins only
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(

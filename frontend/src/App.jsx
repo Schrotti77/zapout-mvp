@@ -9,6 +9,7 @@ import DashboardScreen from './screens/DashboardScreen';
 import POSScreen from './screens/POSScreen';
 import AuthScreen from './screens/AuthScreen';
 import PasskeyAuthScreen from './screens/PasskeyAuthScreen';
+import MintSettingsScreen from './screens/MintSettingsScreen';
 import CartDrawer from './components/CartDrawer';
 import Layout, { ScreenCard, PageTitle, SectionTitle } from './components/ui/Layout';
 import { useTranslation } from 'react-i18next';
@@ -154,7 +155,7 @@ function App() {
         cartOpen={cartOpen}
         setCartOpen={setCartOpen}
       >
-        <SettingsScreen />
+        <SettingsScreen onNavigate={s => setScreen(s)} />
       </Layout>
     );
   }
@@ -185,6 +186,21 @@ function App() {
         setCartOpen={setCartOpen}
       >
         <SwapScreen onBack={() => setScreen('settings')} />
+      </Layout>
+    );
+  }
+
+  // Mint Settings Screen
+  if (screen === 'mint-settings') {
+    return (
+      <Layout
+        title="Cashu Mints"
+        screen={screen}
+        setScreen={setScreen}
+        cartOpen={cartOpen}
+        setCartOpen={setCartOpen}
+      >
+        <MintSettingsScreen />
       </Layout>
     );
   }

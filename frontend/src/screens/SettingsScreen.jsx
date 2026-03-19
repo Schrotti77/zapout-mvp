@@ -72,7 +72,7 @@ const dangerButtonStyle = {
   marginTop: '8px',
 };
 
-export default function SettingsScreen({ onBack }) {
+export default function SettingsScreen({ onBack, onNavigate }) {
   const { t, i18n } = useTranslation();
   const [user, setUser] = useState(null);
   const [cashuInfo, setCashuInfo] = useState(null);
@@ -365,6 +365,28 @@ export default function SettingsScreen({ onBack }) {
             Mint {cashuInfo?.working ? 'aktiv' : 'nicht erreichbar'}
           </span>
         </div>
+
+        <button
+          onClick={() => onNavigate?.('mint-settings')}
+          style={{
+            marginTop: '12px',
+            width: '100%',
+            backgroundColor: '#1a1a1a',
+            color: '#f7931a',
+            border: '1px solid #f7931a',
+            padding: '10px',
+            borderRadius: '8px',
+            fontSize: '13px',
+            fontWeight: '500',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px',
+          }}
+        >
+          🏦 Mints verwalten
+        </button>
       </div>
 
       {/* Payment Stats Section */}
