@@ -642,15 +642,15 @@ async def melt_token_to_ln(mint_url: str, invoice: str, proofs: list) -> dict:
             # Step 1: Get melt quote (NUT-11)
             quote_response = await client.post(
                 f"{mint_url}/v1/melt/quote/bolt11",
-                json={"request": invoice},
+                json={"request": invoice, "unit": "sat"},
                 timeout=30,
             )
 
             if quote_response.status_code != 200:
-                return {"success": False, "error": f"Mint quote failed: {quote_response.text}"}
+                return {"success": False, "error": f"Melt quote failed: {quote_response.text}"}
 
             quote_data = quote_response.json()
-            melt_quote_id = quote_data.get("quote_id")
+            melt_quote_id = quote_data.get("quote")
             amount_sats = quote_data.get("amount", 0)
             fee_reserve = quote_data.get("fee_reserve", 0)
 
@@ -658,7 +658,7 @@ async def melt_token_to_ln(mint_url: str, invoice: str, proofs: list) -> dict:
             melt_response = await client.post(
                 f"{mint_url}/v1/melt",
                 json={
-                    "quote_id": melt_quote_id,
+                    "quote": melt_quote_id,
                     "proofs": proofs,
                 },
                 timeout=30,
