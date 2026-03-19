@@ -90,6 +90,7 @@ export default function Products({ onBack, setScreen, setCartOpen }) {
     category: 'Getränke',
     image_url: '',
     active: true,
+    vat_rate: 19,
   });
 
   const getToken = () => localStorage.getItem('zapout_token');
@@ -150,6 +151,7 @@ export default function Products({ onBack, setScreen, setCartOpen }) {
           category: 'Allgemein',
           image_url: '',
           active: true,
+          vat_rate: 19,
         });
         fetchProducts();
       } else {
@@ -168,6 +170,7 @@ export default function Products({ onBack, setScreen, setCartOpen }) {
       category: product.category || 'Allgemein',
       image_url: product.image_url || '',
       active: product.active,
+      vat_rate: product.vat_rate || 19,
     });
     setEditingId(product.id);
     setShowForm(true);
@@ -331,6 +334,35 @@ export default function Products({ onBack, setScreen, setCartOpen }) {
                 autoFocus
               />
             )}
+
+            {/* MwSt Satz */}
+            <label
+              style={{ color: '#888', fontSize: '12px', marginBottom: '4px', display: 'block' }}
+            >
+              MwSt-Satz
+            </label>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+              {[0, 7, 19].map(rate => (
+                <button
+                  key={rate}
+                  type="button"
+                  onClick={() => setForm({ ...form, vat_rate: rate })}
+                  style={{
+                    flex: 1,
+                    padding: '10px',
+                    borderRadius: '8px',
+                    border: form.vat_rate === rate ? '2px solid #f7931a' : '1px solid #333',
+                    backgroundColor: form.vat_rate === rate ? '#1a1a1a' : '#0a0a0a',
+                    color: form.vat_rate === rate ? '#f7931a' : '#666',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {rate === 0 ? '0% (befreit)' : rate === 7 ? '7% (ermäßigt)' : '19% (normal)'}
+                </button>
+              ))}
+            </div>
 
             <label
               style={{

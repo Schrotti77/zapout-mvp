@@ -268,6 +268,33 @@ def check_rate_limit(ip: str) -> bool:
 DB_PATH = "zapout.db"
 
 
+def calculate_vat(gross_cents, vat_rate):
+    """Calculate VAT from gross amount. vat_rate is percentage (e.g., 19 for 19%)"""
+    net = round(gross_cents * 100 / (100 + vat_rate))
+    vat = gross_cents - net
+    return net, vat
+
+
+def calculate_vat_breakdown(items):
+    """Calculate VAT breakdown by rate for a list of cart items.
+    Each item should have: price_cents, quantity, vat_rate (optional, defaults to 19)
+    Returns dict: {rate: {net, vat, subtotal, count}}
+    """
+    breakdown = {}
+    for item in items:
+        rate = item.get("vat_rate") or 19
+        subtotal = item.get("price_cents", 0) * item.get("quantity", 1)
+        net, vat = calculate_vat(subtotal, rate)
+
+        if rate not in breakdown:
+            breakdown[rate] = {"net": 0, "vat": 0, "subtotal": 0, "count": 0}
+        breakdown[rate]["net"] += net
+        breakdown[rate]["vat"] += vat
+        breakdown[rate]["subtotal"] += subtotal
+        breakdown[rate]["count"] += item.get("quantity", 1)
+    return breakdown
+
+
 def init_db():
     """Initialize database tables"""
     conn = sqlite3.connect(DB_PATH)
@@ -334,6 +361,12 @@ def init_db():
         )
     """
     )
+
+    # Products table - add vat_rate column if not exists (MwSt Support)
+    try:
+        c.execute("ALTER TABLE products ADD COLUMN vat_rate INTEGER DEFAULT 19")
+    except sqlite3.OperationalError:
+        pass  # Column already exists
 
     conn.commit()
     conn.close()
@@ -823,7 +856,7 @@ def get_cart(user_id: int = Depends(verify_token)):
     c = conn.cursor()
     c.execute(
         """
-        SELECT ci.id, ci.product_id, ci.quantity, p.name, p.price_cents, p.description
+        SELECT ci.id, ci.product_id, ci.quantity, p.name, p.price_cents, p.description, COALESCE(p.vat_rate, 19)
         FROM cart_items ci
         JOIN products p ON ci.product_id = p.id
         WHERE ci.user_id = ?
@@ -832,7 +865,8 @@ def get_cart(user_id: int = Depends(verify_token)):
     )
     rows = c.fetchall()
     conn.close()
-    return [
+
+    items = [
         {
             "id": r[0],
             "product_id": r[1],
@@ -840,9 +874,18 @@ def get_cart(user_id: int = Depends(verify_token)):
             "name": r[3],
             "price_cents": r[4],
             "description": r[5],
+            "vat_rate": r[6],
         }
         for r in rows
     ]
+
+    # Calculate VAT breakdown
+    vat_breakdown = calculate_vat_breakdown(items)
+
+    return {
+        "items": items,
+        "vat_breakdown": vat_breakdown,
+    }
 
 
 @app.post("/cart/items")
@@ -907,24 +950,37 @@ def checkout_cart(request: dict = None, user_id: int = Depends(verify_token)):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
 
-    # Get cart items
+    # Get cart items with VAT rate
     c.execute(
         """
-        SELECT ci.product_id, ci.quantity, p.name, p.price_cents
+        SELECT ci.product_id, ci.quantity, p.name, p.price_cents, COALESCE(p.vat_rate, 19)
         FROM cart_items ci
         JOIN products p ON ci.product_id = p.id
         WHERE ci.user_id = ?
     """,
         (user_id,),
     )
-    items = c.fetchall()
+    rows = c.fetchall()
 
-    if not items:
+    if not rows:
         conn.close()
         raise HTTPException(400, "Cart is empty")
 
-    # Calculate total
-    total_cents = sum(item[3] * item[1] for item in items)
+    # Build items with vat_rate
+    items = [
+        {
+            "product_id": r[0],
+            "quantity": r[1],
+            "name": r[2],
+            "price_cents": r[3],
+            "vat_rate": r[4],
+        }
+        for r in rows
+    ]
+
+    # Calculate total and VAT breakdown
+    total_cents = sum(item["price_cents"] * item["quantity"] for item in items)
+    vat_breakdown = calculate_vat_breakdown(items)
 
     # Create order
     c.execute(
@@ -968,7 +1024,8 @@ def checkout_cart(request: dict = None, user_id: int = Depends(verify_token)):
         "payment_hash": payment_hash,
         "payment_id": order_id,
         "status": "pending",
-        "items": [{"product_id": item[0], "quantity": item[1], "name": item[2]} for item in items],
+        "items": items,
+        "vat_breakdown": vat_breakdown,
     }
 
 
@@ -978,7 +1035,7 @@ def get_products(user_id: int = Depends(verify_token)):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute(
-        "SELECT id, name, price_cents, description, image_url, category, active FROM products WHERE user_id=? ORDER BY category, name",
+        "SELECT id, name, price_cents, description, image_url, category, active, COALESCE(vat_rate, 19) FROM products WHERE user_id=? ORDER BY category, name",
         (user_id,),
     )
     rows = c.fetchall()
@@ -992,6 +1049,7 @@ def get_products(user_id: int = Depends(verify_token)):
             "image_url": r[4],
             "category": r[5],
             "active": r[6],
+            "vat_rate": r[7],
         }
         for r in rows
     ]
@@ -1004,6 +1062,7 @@ def create_product(product: dict, user_id: int = Depends(verify_token)):
     description = product.get("description", "")
     image_url = product.get("image_url", "")
     category = product.get("category", "")
+    vat_rate = product.get("vat_rate", 19)  # Default 19% MwSt
 
     if not name or not price_cents:
         raise HTTPException(400, "name and price_cents required")
@@ -1011,8 +1070,8 @@ def create_product(product: dict, user_id: int = Depends(verify_token)):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute(
-        "INSERT INTO products (user_id, name, price_cents, description, image_url, category) VALUES (?, ?, ?, ?, ?, ?)",
-        (user_id, name, price_cents, description, image_url, category),
+        "INSERT INTO products (user_id, name, price_cents, description, image_url, category, vat_rate) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (user_id, name, price_cents, description, image_url, category, vat_rate),
     )
     product_id = c.lastrowid
     conn.commit()
@@ -1025,6 +1084,7 @@ def create_product(product: dict, user_id: int = Depends(verify_token)):
         "description": description,
         "image_url": image_url,
         "category": category,
+        "vat_rate": vat_rate,
     }
 
 
@@ -1036,6 +1096,7 @@ def update_product(product_id: int, product: dict, user_id: int = Depends(verify
     category = product.get("category")
     image_url = product.get("image_url")
     active = product.get("active")
+    vat_rate = product.get("vat_rate")  # MwSt Satz
 
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -1062,6 +1123,9 @@ def update_product(product_id: int, product: dict, user_id: int = Depends(verify
     if category is not None:
         updates.append("category=?")
         params.append(category)
+    if vat_rate is not None:
+        updates.append("vat_rate=?")
+        params.append(vat_rate)
 
     params.extend([product_id, user_id])
     c.execute(f"UPDATE products SET {', '.join(updates)} WHERE id=? AND user_id=?", params)

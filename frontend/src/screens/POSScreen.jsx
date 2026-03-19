@@ -151,6 +151,7 @@ export default function POSScreen({ onBack }) {
   const { t } = useTranslation();
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
+  const [vatBreakdown, setVatBreakdown] = useState({});
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [paymentMethod, setPaymentMethod] = useState(null);
   const [paymentRequest, setPaymentRequest] = useState(null);
@@ -224,6 +225,7 @@ export default function POSScreen({ onBack }) {
           name: product.name,
           price_cents: product.price_cents,
           quantity: 1,
+          vat_rate: product.vat_rate || 19,
         },
       ];
     });
@@ -249,15 +251,32 @@ export default function POSScreen({ onBack }) {
 
   const handleLoadBasket = (items, total) => {
     setCart(items);
-    // Optionally recalculate tip based on new total
-    if (tipPercent > 0) {
-      // Keep tip percentage but it will recalculate on next render
-    }
+    // VAT breakdown will be recalculated via currentVatBreakdown
   };
 
   const formatPrice = cents => {
     return (cents / 100).toFixed(2) + ' €';
   };
+
+  // Calculate VAT breakdown from cart items
+  const calculateVatBreakdown = items => {
+    const rates = {};
+    items.forEach(item => {
+      const rate = item.vat_rate || 19;
+      const subtotal = item.price_cents * item.quantity;
+      const net = Math.round(subtotal / (1 + rate / 100));
+      const vat = subtotal - net;
+      if (!rates[rate]) {
+        rates[rate] = { net: 0, vat: 0, subtotal: 0 };
+      }
+      rates[rate].net += net;
+      rates[rate].vat += vat;
+      rates[rate].subtotal += subtotal;
+    });
+    return rates;
+  };
+
+  const currentVatBreakdown = calculateVatBreakdown(cart);
 
   const handlePayment = async method => {
     if (cart.length === 0) return;
@@ -706,6 +725,29 @@ export default function POSScreen({ onBack }) {
               </div>
             </div>
           </div>
+
+          {/* MwSt Breakdown */}
+          {Object.keys(currentVatBreakdown).length > 0 && (
+            <div style={{ marginBottom: '12px', padding: '8px 0', borderTop: '1px solid #222' }}>
+              <div style={{ fontSize: '11px', color: '#666', marginBottom: '4px' }}>
+                inkl. MwSt:
+              </div>
+              {Object.entries(currentVatBreakdown).map(([rate, data]) => (
+                <div
+                  key={rate}
+                  style={{
+                    fontSize: '12px',
+                    color: '#888',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <span>{rate}% MwSt</span>
+                  <span>{formatPrice(data.vat)}</span>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Tip Buttons */}
           {cart.length > 0 && (
