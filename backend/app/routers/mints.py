@@ -522,7 +522,10 @@ def decode_cashu_token(token: str) -> dict:
     """
     Decode a Cashu token to extract mint URL and amount.
     Supports both cashuA... and cashuB... formats.
+    Uses MessagePack decoding (Cashu native format) with JSON fallback.
     """
+    import cbor2
+
     try:
         # Remove cashuA/cashuB prefix if present (cashuA is 6 chars)
         if token.startswith("cashuA"):
@@ -544,33 +547,76 @@ def decode_cashu_token(token: str) -> dict:
         encoded_padded = encoded + "=" * padding_needed
 
         # Try to decode as base64
-        try:
-            decoded = base64.urlsafe_b64decode(encoded_padded)
-            data = json.loads(decoded)
-        except Exception as e:
-            return {"mint_url": None, "amount_sats": 0, "error": str(e)}
+        decoded = base64.urlsafe_b64decode(encoded_padded)
 
-        # Extract mint URL from proofs or token structure
+        # Try CBOR first (Cashu native format), fall back to JSON
+        try:
+            data = cbor2.loads(decoded)
+        except Exception:
+            # Fall back to JSON
+            data = json.loads(decoded)
+
+        # Extract mint URL and amount from token structure
         mint_url = None
         amount_sats = 0
+        proofs = []
 
-        # Cashu token structure varies, try to extract
         if isinstance(data, dict):
             # Look for mint URL in various places
-            mint_url = data.get("mint") or data.get("mintUrl") or data.get("mint_url")
+            mint_url = (
+                data.get("mint") or data.get("mintUrl") or data.get("mint_url") or data.get("m")
+            )
 
-            # Sum up amounts from proofs
-            proofs = data.get("proofs", [])
-            if proofs:
-                amount_sats = sum(p.get("amount", 0) for p in proofs)
-            elif "amount" in data:
-                amount_sats = data["amount"]
+            # Token v2 structure: {"t": [{"i": keyset_id, "p": [proofs]}], "m": mint_url, "u": unit}
+            token_entries = data.get("t", [])
+            for entry in token_entries:
+                entry_proofs = entry.get("p", [])
+                keyset_id = entry.get("i")
+                # Convert bytes to hex string
+                if isinstance(keyset_id, bytes):
+                    keyset_id = keyset_id.hex()
+                for proof in entry_proofs:
+                    proof_data = {
+                        "id": keyset_id,
+                        "amount": proof.get("a", 0),
+                        "secret": proof.get("s"),
+                    }
+                    # Convert commitment (C) from bytes to hex
+                    commitment = proof.get("c")
+                    if isinstance(commitment, bytes):
+                        commitment = commitment.hex()
+                    proof_data["c"] = commitment
+                    # Convert witness if present
+                    witness = proof.get("w")
+                    if isinstance(witness, bytes):
+                        witness = witness.hex()
+                    if witness:
+                        proof_data["w"] = witness
+                    proofs.append(proof_data)
+                    amount_sats += proof.get("a", 0)
+
+            # Fallback: legacy proofs format
+            if not proofs:
+                proofs = data.get("proofs", [])
+                if proofs:
+                    amount_sats = sum(p.get("amount", p.get("a", 0)) for p in proofs)
+                elif "amount" in data:
+                    amount_sats = data["amount"]
 
         elif isinstance(data, list):
-            # List of proofs
-            amount_sats = sum(p.get("amount", 0) for p in data)
+            # List of proofs (legacy format)
+            for proof in data:
+                proofs.append(
+                    {
+                        "id": proof.get("keyset_id"),
+                        "amount": proof.get("amount", proof.get("a", 0)),
+                        "secret": proof.get("secret", proof.get("s")),
+                        "commitment": proof.get("c"),
+                    }
+                )
+                amount_sats += proof.get("amount", proof.get("a", 0))
 
-        return {"mint_url": mint_url, "amount_sats": amount_sats, "raw": data}
+        return {"mint_url": mint_url, "amount_sats": amount_sats, "proofs": proofs, "raw": data}
     except Exception as e:
         logger.error(f"Failed to decode token: {e}")
         return {"mint_url": None, "amount_sats": 0, "raw": None, "error": str(e)}
@@ -649,14 +695,14 @@ async def melt_token_to_ln(mint_url: str, invoice: str, proofs: list) -> dict:
             amount_sats = quote_data.get("amount", 0)
             fee_reserve = quote_data.get("fee_reserve", 0)
 
-            # Step 2: Send proofs to mint (NUT-12)
+            # Step 2: Send proofs to mint (NUT-05)
             melt_response = await client.post(
-                f"{mint_url}/v1/melt",
+                f"{mint_url}/v1/melt/bolt11",
                 json={
                     "quote": melt_quote_id,
-                    "proofs": proofs,
+                    "inputs": proofs,
                 },
-                timeout=30,
+                timeout=60,  # NUT-05: use long timeout for Lightning payments
             )
 
             if melt_response.status_code != 200:
@@ -765,13 +811,36 @@ async def swap_token_to_lightning(
             message=f"Failed to create Lightning invoice: {str(e)}",
         )
 
-    # Extract proofs from token
-    proofs = []
-    raw_data = token_data.get("raw", {})
-    if isinstance(raw_data, dict):
-        proofs = raw_data.get("proofs", [])
-    elif isinstance(raw_data, list):
-        proofs = raw_data
+    # Extract proofs from decoded token
+    proofs = token_data.get("proofs", [])
+
+    # Fallback: extract from raw data if proofs not directly available
+    if not proofs:
+        raw_data = token_data.get("raw", {})
+        if isinstance(raw_data, dict):
+            # Token v2: {"t": [{"i": keyset_id, "p": [proofs]}], "m": mint_url}
+            token_entries = raw_data.get("t", [])
+            for entry in token_entries:
+                entry_proofs = entry.get("p", [])
+                for proof in entry_proofs:
+                    proofs.append(
+                        {
+                            "id": entry.get("i"),
+                            "amount": proof.get("a", 0),
+                            "secret": proof.get("s"),
+                            "commitment": proof.get("c"),
+                        }
+                    )
+        elif isinstance(raw_data, list):
+            proofs = raw_data
+
+    if not proofs:
+        return SwapResponse(
+            success=False,
+            amount_sats=amount_sats,
+            mint_url=mint_url,
+            message="No proofs found in token",
+        )
 
     # Melt the token at the mint (pay our LND invoice)
     melt_result = await melt_token_to_ln(mint_url, bolt11, proofs)
