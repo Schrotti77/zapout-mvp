@@ -581,51 +581,52 @@ Wichtig:
 
 ---
 
-## 10. LND Wallet Import (Diskussionsbedarf)
+## 10. LND Wallet - Automatisch + Import
 
-### 10.1 Offene Fragen
+### 10.1 Entscheidung: Standard = Auto-Create
 
-| Frage                                      | Optionen                                                           |
-| ------------------------------------------ | ------------------------------------------------------------------ |
-| **Wer erstellt das LND Wallet?**           | A: ZapOut automatisch / B: Import bestehendes / C: Beides          |
-| **Wann wird das Wallet erstellt?**         | A: Bei Onboarding / B: Separater Schritt / C: Owner entscheidet    |
-| **Was passiert mit bestehenden Channels?** | Importierte Wallets haben evtl. schon Channels                     |
-| **LND auf Helmut oder extern?**            | A: Helmut (empfohlen) / B: Beliebiger Server / C: LND-as-a-Service |
+- **Standard:** Auto-Create bei Onboarding (einfach, schnell)
+- **Optional:** Import bestehendes Wallet für Händler mit existierender Node
 
-### 10.2 Vorschlag: 3 Wege zum Wallet
+### 10.2 Auto-Create Flow (Standard)
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│              LND WALLET ERSTELLUNG - 3 WEGE                      │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  WEG 1: "Sofort starten" (Empfohlen für Neulinge)              │
-│  ─────────────────────────────────────────────────────────────│
-│  ZapOut erstellt automatisch ein neues LND Wallet auf dem     │
-│  Helmut-Server. Sofort einsatzbereit.                          │
-│                                                                 │
-│  WEG 2: "Mein Helmut" (Für bestehende Helmut-Nutzer)          │
-│  ─────────────────────────────────────────────────────────────│
-│  Händler hat bereits Helmut → ZapOut verbindet sich damit.    │
-│  Bestehende Channels werden übernommen.                         │
-│                                                                 │
-│  WEG 3: "Externes LND" (Für Power-User)                       │
-│  ─────────────────────────────────────────────────────────────│
-│  LND auf beliebigem Server (Umbrel, RaspiBlitz, Cloud).       │
-│  Connection String / QR-Code eingeben.                         │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+ONBOARDING FLOW (vereinfacht):
+
+Passkey Setup → Backup Auswählen → Wallet Auto! → Go Live!
+                                         │
+                                         ▼
+                               ZapOut erstellt:
+                               • LND Wallet auf Helmut
+                               • Bitcoin-Adresse für On-Chain
+                               • Lightning-Node startklar
 ```
 
-### 10.3 Wallet-Erstellung Timeline
+**Was passiert beim Auto-Create:**
+
+1. ZapOut generiert neues LND Wallet auf Helmut
+2. Merchant bekommt Bitcoin-Wallet-Adresse für On-Chain
+3. Lightning-Node ist startklar (aber noch keine Channels)
+4. Optional: Channel-Opening-Vorschlag nach erstem Zahlungseingang
+
+### 10.3 Import Flow (Optional)
 
 ```
-ONBOARDING FLOW:
+IMPORT EXISTIERENDES WALLET
 
-Passkey Setup → Backup Auswählen → Wallet Art? → Go Live!
-                                    ├── Option A: Auto-create (→ Helmut)
-                                    ├── Option B: Import Existing
-                                    └── Option C: Connect External
+Schritte:
+1. "Bestehendes Wallet importieren" wählen
+2. Connection-Methode wählen:
+   ├── Helmut QR-Code scannen (von bestehendem Helmut)
+   ├── LND Connection String eingeben
+   └── Seed/QR-Code von Wallet (z.B. Umbrel, RaspiBlitz)
+3. Import bestätigen
+4. ✓ Channels + History werden übernommen
+
+Achtung:
+• Import löscht NICHT das alte Wallet
+• Channels bleiben auf der alten Node
+• ZapOut nutzt jetzt das importierte Wallet
 ```
 
 ---
@@ -657,7 +658,7 @@ Passkey Setup → Backup Auswählen → Wallet Art? → Go Live!
 - [x] **Multi-Device:** ✅ Tablet = Haupt, Phone = Backup-POS
 - [x] **Mitarbeiter-Rollen:** ✅ Owner vs Employee Permissions
 - [x] **Backup-Pyramide:** ✅ Phone-Backup als Level 2 ergänzt
-- [ ] **LND Wallet Erstellung:** ❓ Noch nicht entschieden (3 Wege)
+- [x] **LND Wallet:** ✅ Auto-Create beim Onboarding + Import-Option
 - [x] **Hardware Wallet:** Deferred für später
 
 ---
