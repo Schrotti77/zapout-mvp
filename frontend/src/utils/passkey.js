@@ -275,7 +275,23 @@ export async function authenticatePasskey(email = null) {
     throw new Error('Passkeys are not supported in this browser');
   }
 
-  const challenge = generateChallenge();
+  // SEC-001: Get challenge from server to prevent replay attacks
+  let serverChallenge = null;
+  try {
+    const challengeRes = await fetch(
+      `${API_URL}/auth/passkey/challenge/authenticate?email=${encodeURIComponent(email || '')}`
+    );
+    if (challengeRes.ok) {
+      const challengeData = await challengeRes.json();
+      serverChallenge = challengeData.challenge;
+    }
+  } catch (e) {
+    console.warn('Could not fetch server challenge, using fallback:', e);
+  }
+
+  // Use server challenge or fallback to local (for offline/error cases)
+  const challenge = serverChallenge || generateChallenge();
+
   const storedUserId = localStorage.getItem('zapout_passkey_userId');
   const storedCredentialId = localStorage.getItem('zapout_passkey_credentialId');
 
@@ -353,6 +369,7 @@ export async function authenticatePasskey(email = null) {
           credential: assertionData,
           credential_id: credentialId,
           prf_result: prfResult,
+          challenge: serverChallenge, // SEC-001: Include server-issued challenge
         }),
       });
 

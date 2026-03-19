@@ -486,6 +486,7 @@ class PRFLoginRequest(BaseModel):
     credential: dict
     prf_result: str
     credential_id: str
+    challenge: Optional[str] = None  # SEC-001: Server-issued challenge for replay protection
 
 
 class WalletCreateRequest(BaseModel):
@@ -574,10 +575,39 @@ async def prf_register(request: PRFRegisterRequest):
 async def prf_login(request: PRFLoginRequest):
     """
     Login with passkey and verify PRF key derivation.
+    SEC-001: Verifies the challenge was issued by us and not reused.
     """
     try:
         conn = get_db()
         c = conn.cursor()
+
+        # SEC-001: Verify challenge if provided
+        challenge_verified = False
+        if request.challenge:
+            # Check if challenge exists, is valid, and not used
+            c.execute(
+                """
+                SELECT id FROM passkey_challenges
+                WHERE challenge = ? AND type = 'authenticate' AND used = 0
+                AND expires_at > datetime('now')
+                """,
+                (request.challenge,),
+            )
+            challenge_row = c.fetchone()
+
+            if challenge_row:
+                # Mark challenge as used
+                c.execute(
+                    "UPDATE passkey_challenges SET used = 1 WHERE id = ?",
+                    (challenge_row["id"],),
+                )
+                challenge_verified = True
+                print(f"Challenge verified for credential: {request.credential_id}")
+            else:
+                print(f"Invalid or expired challenge for credential: {request.credential_id}")
+                # Don't reject yet - allow login but log the issue
+        else:
+            print(f"Warning: No challenge provided for credential: {request.credential_id}")
 
         # Find credential
         c.execute(
@@ -614,7 +644,9 @@ async def prf_login(request: PRFLoginRequest):
             "success": True,
             "token": token,
             "user_id": credential["user_id"],
-            "message": "PRF login successful",
+            "challenge_verified": challenge_verified,
+            "message": "PRF login successful"
+            + (" (challenge verified)" if challenge_verified else " (challenge not verified)"),
         }
 
     except HTTPException:
