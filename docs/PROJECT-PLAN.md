@@ -221,6 +221,10 @@ Cross-Mint Swap (Token von Mint X → Lightning) erfordert:
 | LNbits Integration              | ❌             | 🟢 Nice  | -      |
 | Offline-Modus                   | ⏸️             | 🟢 Nice  | -      |
 | Multi-Location                  | ⏸️             | 🟢 Nice  | -      |
+| **BTCPay Server**               | 📋 Analysed    | 🟢 Nice  | BTCPay |
+| **Blink LN Backend**            | 📋 Analysed    | 🟢 Nice  | Blink  |
+
+**BTCPay Server & Blink:** Siehe `docs/BTCPAY_BLINK_ANALYSIS.md`
 
 ---
 
