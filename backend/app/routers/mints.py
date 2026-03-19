@@ -457,13 +457,8 @@ async def verify_mint_connection(mint_url: str) -> bool:
     """Check if a mint is reachable and responding"""
     try:
         async with httpx.AsyncClient() as client:
-            # Try NUT-09 /v1/mint endpoint
-            response = await client.get(f"{mint_url}/v1/mint", timeout=10)
-            if response.status_code == 200:
-                return True
-
-            # Try older /info endpoint
-            response = await client.get(f"{mint_url}/info", timeout=10)
+            # Try /v1/info endpoint (standard NUT-07)
+            response = await client.get(f"{mint_url}/v1/info", timeout=10)
             if response.status_code == 200:
                 return True
 

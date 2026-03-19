@@ -1244,12 +1244,27 @@ def verify_token_state(token_data: dict, user_id: int = Depends(verify_token)):
         return {"valid": False, "error": str(e)}
 
 
+def get_user_preferred_mint(user_id: int) -> str:
+    """Get user's preferred mint URL from database"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute(
+        "SELECT mint_url FROM user_mints WHERE user_id=? AND is_preferred=1 AND is_active=1 LIMIT 1",
+        (user_id,),
+    )
+    row = c.fetchone()
+    conn.close()
+    if row:
+        return row[0]
+    return DEFAULT_CASHU_MINT
+
+
 @app.post("/cashu/mint-quote")
 def create_mint_quote(
     amount_cents: int, user_id: int = Depends(verify_token), mint_url: str = None
 ):
     amount_sats = amount_cents // 10
-    mint = mint_url or DEFAULT_CASHU_MINT
+    mint = mint_url or get_user_preferred_mint(user_id)
 
     try:
         # NUT-standard endpoint: /v1/mint/quote/bolt11
