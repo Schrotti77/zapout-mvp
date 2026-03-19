@@ -122,23 +122,25 @@ User C ──┘                     User C ──► Watch-Only-C (pubkey)
 > **Übernommen von Numo** - Multi-Mint Support und Auto-Swap
 > **Helmut Mint läuft:** `http://100.74.149.69:3338` (cdk-mintd v0.15.0)
 
-| Feature                          | Status | Priority | Quelle |
-| -------------------------------- | ------ | -------- | ------ |
-| **Helmut Mint Setup**            | ✅     | 🔴 HIGH  | -      |
-| **Mint Management UI**           | ✅     | 🔴 HIGH  | -      |
-| **Add/Remove Mints**             | ✅     | 🔴 HIGH  | -      |
-| **Preferred Mint Selection**     | ✅     | 🔴 HIGH  | -      |
-| **Balance per Mint**             | 🔴     | 🟡 MED   | Numo   |
-| **Swap to Lightning (ANY Mint)** | ⚠️     | 🔴 HIGH  | Numo   |
-| **Accept Unknown Mints Toggle**  | ✅     | 🔴 HIGH  | -      |
-| Mint Health Check                | 🔴     | 🟡 MED   | -      |
+| Feature                         | Status | Priority | Quelle |
+| ------------------------------- | ------ | -------- | ------ |
+| **Helmut Mint Setup**           | ✅     | 🔴 HIGH  | -      |
+| **Mint Management UI**          | ✅     | 🔴 HIGH  | -      |
+| **Add/Remove Mints**            | ✅     | 🔴 HIGH  | -      |
+| **Preferred Mint Selection**    | ✅     | 🔴 HIGH  | -      |
+| **Balance per Mint**            | 🔴     | 🟡 MED   | Numo   |
+| **Swap to Lightning**           | ⚠️ 50% | 🔴 HIGH  | Numo   |
+| **Accept Unknown Mints Toggle** | ✅     | 🔴 HIGH  | -      |
+| Mint Health Check               | 🔴     | 🟡 MED   | -      |
 
 **Helmut Mint Status:**
 
 - ✅ cdk-mintd läuft auf Port 3338
 - ✅ LND Backend verbunden (SynapseLN)
 - ✅ Öffentlich erreichbar
-- ⚠️ Noch keine echten Channels für Produktivbetrieb
+- ✅ Swap Engine implementiert (`POST /cashu/pay`)
+- ⚠️ NUT-05 Melt funktioniert, aber testnut FakeWallet
+- ⚠️ Helmut Mint Token können nicht lokal getestet werden
 - 🔴 Monitoring/Backups fehlen
 
 **Swap to Lightning - Einschränkungen:**

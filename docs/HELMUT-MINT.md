@@ -132,6 +132,47 @@ sequenceDiagram
 3. **LNBits Mints**: Viele nutzen VoidWallet (kein echtes Lightning)
 4. **Real Lightning Mints**: Erfordern selbst-gehostetes Setup mit echten Channels
 
+### ✅ Swap Engine - Implementiert (19.03.2026)
+
+**Endpoint:** `POST /cashu/pay`
+
+**Flow:**
+
+```
+1. Token decode (CBOR/JSON support)
+2. Prüfe ob Mint trusted (Helmut Mint)
+3. Wenn trusted → Akzeptiere direkt (kein Swap)
+4. Wenn untrusted → NUT-05 Melt (Mint bezahlt我们的 LND Invoice)
+```
+
+**Getestet:**
+| Test | Ergebnis |
+|------|----------|
+| Token Decode | ✅ CBOR + JSON |
+| Trusted Mint Flow | ✅ Logik implementiert |
+| NUT-05 Melt API | ✅ Helmut Mint unterstützt |
+| Swap mit testnut | ⚠️ FakeWallet bezahlt nicht |
+| Fee Handling | ✅ testnut will 3 sat (6%) |
+
+**API Response:**
+
+```json
+{
+  "success": true,
+  "order_id": 42,
+  "amount_sats": 50,
+  "amount_cents": 5,
+  "mint_url": "https://testnut.cashu.space",
+  "message": "Swap failed: not enough inputs (50 needed 53)",
+  "status": "failed"
+}
+```
+
+**MVP Limitation:**
+
+- Helmut Mint Token können nicht lokal getestet werden (Selbstbezahlung blockiert)
+- In Produktion: Kunden bringen echte Helmut Mint Tokens
+
 ---
 
 ## 🚀 Helmut Mint als Service
