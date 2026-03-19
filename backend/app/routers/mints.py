@@ -529,11 +529,11 @@ def decode_cashu_token(token: str) -> dict:
     Supports both cashuA... and cashuB... formats.
     """
     try:
-        # Remove cashuA/cashuB prefix if present
+        # Remove cashuA/cashuB prefix if present (cashuA is 6 chars)
         if token.startswith("cashuA"):
-            encoded = token[7:]
+            encoded = token[6:]
         elif token.startswith("cashuB"):
-            encoded = token[7:]
+            encoded = token[6:]
         elif token.startswith("cashu"):
             # Try to find the actual encoded part
             match = re.search(r"cashu[AB]?(.*)$", token)
@@ -544,14 +544,16 @@ def decode_cashu_token(token: str) -> dict:
         else:
             encoded = token
 
+        # Add proper padding if needed
+        padding_needed = (4 - len(encoded) % 4) % 4
+        encoded_padded = encoded + "=" * padding_needed
+
         # Try to decode as base64
         try:
-            decoded = base64.urlsafe_b64decode(encoded + "==")
+            decoded = base64.urlsafe_b64decode(encoded_padded)
             data = json.loads(decoded)
-        except Exception:
-            # Try without padding
-            decoded = base64.urlsafe_b64decode(encoded)
-            data = json.loads(decoded)
+        except Exception as e:
+            return {"mint_url": None, "amount_sats": 0, "error": str(e)}
 
         # Extract mint URL from proofs or token structure
         mint_url = None

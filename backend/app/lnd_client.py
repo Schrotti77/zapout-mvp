@@ -1,87 +1,77 @@
 """
 LND Client Module für ZapOut Backend
 
-Verbindet sich mit dem LND Node auf Helmut via SSH Tunnel.
+Verbindet sich mit dem LND Node auf Helmut via SSH + lncli.
 """
 
+import json
 import logging
-import os
-import time
+import subprocess
+import tempfile
 from typing import Optional
-
-import lndgrpc
-from sshtunnel import SSHTunnelForwarder
 
 logger = logging.getLogger(__name__)
 
 # LND auf Helmut
-LND_HOST = "100.74.149.69"  # Helmut's public IP
-LND_PORT = 10009
-
-# Credentials
-CREDENTIALS_DIR = os.path.expanduser("~/.openclaw/credentials/zapout")
-TLS_CERT_PATH = os.path.join(CREDENTIALS_DIR, "lnd-tls.cert")
-ADMIN_MACAROON_PATH = os.path.join(CREDENTIALS_DIR, "lnd-admin.macaroon.hex")
-
-# SSH Tunnel wird als Singleton gehalten
-_tunnel: Optional[SSHTunnelForwarder] = None
-_lnd_client: Optional[lndgrpc.LNDClient] = None
+LND_HOST = "100.74.149.69"
+SSH_KEY = "~/.ssh/umbrel_tunnel"
 
 
-def _read_macaroon_hex(path: str) -> bytes:
-    """Liest Hex-encoded Macaroon und gibt Bytes zurück."""
-    with open(path, "r") as f:
-        hex_str = f.read().strip()
-    return bytes.fromhex(hex_str)
-
-
-def get_lnd_client() -> lndgrpc.LNDClient:
+def _run_lncli(command: list) -> dict:
     """
-    Gibt den LND Client zurück. Erstellt SSH Tunnel falls nötig.
+    Führt einen lncli Befehl auf Helmut aus.
+
+    Args:
+        command: Liste von lncli Argumenten (z.B. ['addinvoice', '--amt', '100'])
+
+    Returns:
+        Dict mit dem JSON Output von lncli
     """
-    global _tunnel, _lnd_client
 
-    if _lnd_client is not None:
-        return _lnd_client
+    # Baue Command - sudo docker exec mit shell=True für korrekte Argument-Parsing
+    # Args mit Leerzeichen müssen gequotet werden
+    def quote_arg(arg):
+        if " " in arg or '"' in arg:
+            return f'"{arg}"'
+        return arg
 
-    # SSH Tunnel erstellen
-    logger.info("Creating SSH tunnel to LND on Helmut...")
+    lncli_args = " ".join(quote_arg(a) for a in command)
+    ssh_cmd = f"sudo docker exec lightning_lnd_1 lncli {lncli_args}"
 
-    _tunnel = SSHTunnelForwarder(
-        (LND_HOST, 22),
-        ssh_username="umbrel",
-        ssh_pkey=os.path.expanduser("~/.ssh/umbrel_tunnel"),
-        remote_bind_address=("127.0.0.1", LND_PORT),
-        local_bind_address=("127.0.0.1", LND_PORT),
-    )
+    cmd = [
+        "ssh",
+        "-o",
+        "StrictHostKeyChecking=no",
+        "-o",
+        "ConnectTimeout=10",
+        "-i",
+        SSH_KEY,
+        f"umbrel@{LND_HOST}",
+        ssh_cmd,
+    ]
 
-    _tunnel.start()
-    logger.info(f"SSH tunnel established on local port {LND_PORT}")
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
 
-    # LND Client erstellen
-    _lnd_client = lndgrpc.LNDClient(
-        f"127.0.0.1:{LND_PORT}",
-        macaroon_path=ADMIN_MACAROON_PATH,
-        cert_path=TLS_CERT_PATH,
-    )
+        if result.returncode != 0:
+            logger.error(f"lncli failed: {result.stderr}")
+            raise Exception(f"lncli error: {result.stderr}")
 
-    # Kurze Pause damit Verbindung stabilisiert
-    time.sleep(0.5)
+        # Parse JSON output
+        if result.stdout.strip():
+            return json.loads(result.stdout)
+        return {}
 
-    return _lnd_client
-
-
-def close_lnd_connection():
-    """Schließt SSH Tunnel und LND Verbindung."""
-    global _tunnel, _lnd_client
-
-    if _lnd_client:
-        _lnd_client = None
-
-    if _tunnel:
-        _tunnel.stop()
-        _tunnel = None
-        logger.info("SSH tunnel closed")
+    except subprocess.TimeoutExpired:
+        raise Exception("lncli command timed out")
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse lncli output: {result.stdout}")
+        raise Exception(f"JSON parse error: {e}")
 
 
 def create_invoice(amount_sats: int, memo: str = "") -> dict:
@@ -95,17 +85,22 @@ def create_invoice(amount_sats: int, memo: str = "") -> dict:
     Returns:
         Dict mit payment_request, payment_hash, etc.
     """
-    client = get_lnd_client()
-
-    # Invoice erstellen
-    add_invoice_response = client.add_invoice(
-        value=amount_sats,
-        memo=memo or f"ZapOut Payment {amount_sats} sats",
+    # lncli addinvoice --amt 100 --expiry 3600
+    result = _run_lncli(
+        [
+            "addinvoice",
+            "--amt",
+            str(amount_sats),
+            "--expiry",
+            "3600",
+            "--memo",
+            memo or f"ZapOut {amount_sats} sats",
+        ]
     )
 
     return {
-        "payment_request": add_invoice_response.payment_request,
-        "payment_hash": add_invoice_response.r_hash.hex(),
+        "payment_request": result.get("payment_request", ""),
+        "payment_hash": result.get("r_hash", ""),
         "amount_sats": amount_sats,
         "memo": memo,
     }
@@ -121,22 +116,21 @@ def check_invoice(payment_hash: str) -> dict:
     Returns:
         Dict mit status (pending, settled, expired)
     """
-    client = get_lnd_client()
-
-    # Payment Hash als Bytes
-    r_hash = bytes.fromhex(payment_hash)
-
     try:
-        invoice = client.lookup_invoice(r_hash_hash=r_hash)
+        # lookupinvoice braucht den r_hash als hex
+        result = _run_lncli(["lookupinvoice", "--r_hash", payment_hash])
 
-        if invoice.settled:
-            return {"status": "settled", "amount_sats": invoice.amt_paid_sat}
-        elif invoice.state == 1:  # OPEN
+        state = result.get("state", 0)
+
+        if state == 1:  # SETTLED
+            return {"status": "settled", "amount_sats": result.get("amt_paid_sat", 0)}
+        elif state == 0:  # ACCEPTED
             return {"status": "pending", "amount_sats": 0}
-        elif invoice.state == 3:  # EXPIRED
+        elif state == 2:  # CANCELLED
             return {"status": "expired", "amount_sats": 0}
         else:
             return {"status": "open", "amount_sats": 0}
+
     except Exception as e:
         logger.error(f"Error checking invoice: {e}")
         return {"status": "error", "error": str(e)}
@@ -146,16 +140,14 @@ def get_wallet_balance() -> dict:
     """
     Gibt den Wallet Balance zurück.
     """
-    client = get_lnd_client()
-
-    wallet_balance = client.wallet_balance()
-    channel_balance = client.channel_balance()
+    wallet = _run_lncli(["walletbalance"])
+    channel = _run_lncli(["channelbalance"])
 
     return {
-        "confirmed_balance": wallet_balance.confirmed_balance,
-        "unconfirmed_balance": wallet_balance.unconfirmed_balance,
-        "channel_balance": channel_balance.balance,
-        "channel_pending_open": channel_balance.pending_open_balance,
+        "confirmed_balance": wallet.get("confirmed_balance", 0),
+        "unconfirmed_balance": wallet.get("unconfirmed_balance", 0),
+        "channel_balance": channel.get("balance", 0),
+        "channel_pending_open": channel.get("pending_open_balance", 0),
     }
 
 
@@ -163,13 +155,12 @@ def get_node_info() -> dict:
     """
     Gibt Node Info zurück (Pubkey, Alias, etc.)
     """
-    client = get_lnd_client()
-    info = client.get_info()
+    info = _run_lncli(["getinfo"])
 
     return {
-        "pubkey": info.identity_pubkey,
-        "alias": info.alias,
-        "version": info.version,
-        "num_channels": info.num_active_channels,
-        "block_height": info.block_height,
+        "pubkey": info.get("identity_pubkey", ""),
+        "alias": info.get("alias", ""),
+        "version": info.get("version", ""),
+        "num_channels": info.get("num_active_channels", 0),
+        "block_height": info.get("block_height", 0),
     }
