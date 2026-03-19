@@ -155,6 +155,15 @@ export default function POSScreen({ onBack }) {
   const [paymentRequest, setPaymentRequest] = useState(null);
   const [loading, setLoading] = useState(false);
   const [btcPrice, setBtcPrice] = useState(null);
+  const [tipPercent, setTipPercent] = useState(0);
+  const [customTip, setCustomTip] = useState('');
+
+  const tipOptions = [
+    { label: '0%', value: 0 },
+    { label: '+10%', value: 10 },
+    { label: '+15%', value: 15 },
+    { label: '+20%', value: 20 },
+  ];
 
   // Fetch products
   useEffect(() => {
@@ -194,8 +203,9 @@ export default function POSScreen({ onBack }) {
       : products.filter(p => (p.category || 'Sonstiges') === selectedCategory);
 
   const totalCents = cart.reduce((sum, item) => sum + item.price_cents * item.quantity, 0);
-
-  const totalSats = btcPrice ? Math.round((totalCents / 100 / btcPrice) * 100000000) : 0;
+  const tipCents = tipPercent > 0 ? Math.round((totalCents * tipPercent) / 100) : 0;
+  const grandTotalCents = totalCents + tipCents;
+  const totalSats = btcPrice ? Math.round((grandTotalCents / 100 / btcPrice) * 100000000) : 0;
 
   const addToCart = product => {
     setCart(prev => {
@@ -229,7 +239,11 @@ export default function POSScreen({ onBack }) {
     });
   };
 
-  const clearCart = () => setCart([]);
+  const clearCart = () => {
+    setCart([]);
+    setTipPercent(0);
+    setCustomTip('');
+  };
 
   const formatPrice = cents => {
     return (cents / 100).toFixed(2) + ' €';
@@ -252,7 +266,8 @@ export default function POSScreen({ onBack }) {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          amount_cents: totalCents,
+          amount_cents: grandTotalCents,
+          tip_cents: tipCents,
           currency: 'eur',
           method: method,
           items: cart,
@@ -290,8 +305,10 @@ export default function POSScreen({ onBack }) {
       });
     });
 
-    // Clear local cart and close payment modal
+    // Clear local cart, tip and close payment modal
     clearCart();
+    setTipPercent(0);
+    setCustomTip('');
     closePayment();
   };
 
@@ -349,8 +366,13 @@ export default function POSScreen({ onBack }) {
         >
           <div style={{ fontSize: '64px', marginBottom: '16px' }}>💰</div>
           <div style={{ fontSize: '24px', fontWeight: '700', marginBottom: '8px' }}>
-            {formatPrice(totalCents)}
+            {formatPrice(grandTotalCents)}
           </div>
+          {tipCents > 0 && (
+            <div style={{ fontSize: '14px', color: '#f7931a', marginBottom: '8px' }}>
+              (inkl. Trinkgeld: +{formatPrice(tipCents)})
+            </div>
+          )}
           <div style={{ fontSize: '14px', color: '#666666', marginBottom: '24px' }}>
             {t('pos.payWithCashu') || 'Bezahle mit Cashu Token'}
           </div>
@@ -452,8 +474,13 @@ export default function POSScreen({ onBack }) {
         >
           <div style={{ fontSize: '64px', marginBottom: '16px' }}>⚡</div>
           <div style={{ fontSize: '24px', fontWeight: '700', marginBottom: '8px' }}>
-            {formatPrice(totalCents)}
+            {formatPrice(grandTotalCents)}
           </div>
+          {tipCents > 0 && (
+            <div style={{ fontSize: '14px', color: '#f7931a', marginBottom: '8px' }}>
+              (inkl. Trinkgeld: +{formatPrice(tipCents)})
+            </div>
+          )}
           <div style={{ fontSize: '14px', color: '#666666', marginBottom: '24px' }}>
             ₿ {totalSats.toLocaleString()} sats
           </div>
@@ -651,7 +678,7 @@ export default function POSScreen({ onBack }) {
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              marginBottom: '16px',
+              marginBottom: '8px',
             }}
           >
             <div style={{ fontSize: '16px', fontWeight: '600' }}>{t('pos.total') || 'Gesamt'}</div>
@@ -660,10 +687,62 @@ export default function POSScreen({ onBack }) {
                 ₿ {totalSats.toLocaleString()} sats
               </div>
               <div style={{ fontSize: '20px', fontWeight: '700', color: '#f7931a' }}>
-                {formatPrice(totalCents)}
+                {formatPrice(grandTotalCents)}
               </div>
             </div>
           </div>
+
+          {/* Tip Buttons */}
+          {cart.length > 0 && (
+            <div style={{ marginBottom: '12px' }}>
+              <div style={{ fontSize: '12px', color: '#666666', marginBottom: '8px' }}>
+                Trinkgeld (optional)
+              </div>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {tipOptions.map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setTipPercent(opt.value)}
+                    style={{
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: tipPercent === opt.value ? '2px solid #f7931a' : '1px solid #333',
+                      backgroundColor: tipPercent === opt.value ? '#1a1a1a' : '#0a0a0a',
+                      color: tipPercent === opt.value ? '#f7931a' : '#666',
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+                <input
+                  type="number"
+                  placeholder="€"
+                  value={customTip}
+                  onChange={e => {
+                    setCustomTip(e.target.value);
+                    setTipPercent(0);
+                  }}
+                  style={{
+                    width: '60px',
+                    padding: '8px',
+                    borderRadius: '8px',
+                    border: '1px solid #333',
+                    backgroundColor: '#0a0a0a',
+                    color: '#ffffff',
+                    fontSize: '12px',
+                  }}
+                />
+                {tipPercent > 0 && (
+                  <span style={{ fontSize: '12px', color: '#f7931a', alignSelf: 'center' }}>
+                    +{formatPrice(tipCents)}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
 
           <div style={paymentButtonsStyle}>
             <button
