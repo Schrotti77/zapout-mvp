@@ -8,6 +8,7 @@ import CashuScreen from './screens/CashuScreen';
 import DashboardScreen from './screens/DashboardScreen';
 import POSScreen from './screens/POSScreen';
 import AuthScreen from './screens/AuthScreen';
+import PasskeyAuthScreen from './screens/PasskeyAuthScreen';
 import CartDrawer from './components/CartDrawer';
 import Layout, { ScreenCard, PageTitle, SectionTitle } from './components/ui/Layout';
 import { useTranslation } from 'react-i18next';
@@ -23,7 +24,7 @@ function App() {
     return stored === 'pos' ? 'pos' : 'dashboard';
   };
 
-  const [screen, setScreen] = useState('register');
+  const [screen, setScreen] = useState('passkey'); // Start with passkey screen
   const [defaultScreen, setDefaultScreen] = useState(getDefaultScreen);
   const [token, setToken] = useState(localStorage.getItem('zapout_token'));
   const [payments, setPayments] = useState([]);
@@ -84,7 +85,20 @@ function App() {
     setScreen('register');
   };
 
-  // Auth Screens (Register/Login)
+  // Auth Screens (Register/Login/Passkey)
+  if (screen === 'passkey') {
+    return (
+      <PasskeyAuthScreen
+        mode="select"
+        setScreen={setScreen}
+        onAuthSuccess={newToken => {
+          setToken(newToken);
+        }}
+        onSkip={() => setScreen('register')}
+      />
+    );
+  }
+
   if (screen === 'register' || screen === 'login') {
     return (
       <AuthScreen

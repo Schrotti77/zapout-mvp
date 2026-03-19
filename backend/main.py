@@ -16,6 +16,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Set
 
 import bcrypt
+from app import auth_passkey  # Passkey auth module
 
 # Import routers
 from app.routers import transactions
@@ -221,6 +222,7 @@ app = FastAPI(title="ZapOut API", version="0.1.0")
 
 # Register routers
 app.include_router(transactions.router)
+app.include_router(auth_passkey.router)  # Passkey authentication
 
 # CORS - Restricted to known origins only
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(
