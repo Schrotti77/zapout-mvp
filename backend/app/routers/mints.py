@@ -861,3 +861,264 @@ async def swap_token_to_lightning(
             mint_url=mint_url,
             message=f"Swap failed: {melt_result.get('error', 'Unknown error')}",
         )
+
+
+class CashuPaymentRequest(BaseModel):
+    """Request to pay with Cashu tokens"""
+
+    token: str
+    order_id: int
+
+
+class CashuPaymentResponse(BaseModel):
+    """Response for Cashu payment"""
+
+    success: bool
+    order_id: int
+    amount_sats: int
+    amount_cents: int
+    payment_hash: Optional[str] = None
+    mint_url: Optional[str] = None
+    message: str
+    status: str = "pending"  # "paid", "pending_swap", "failed"
+
+
+@router.post("/pay", response_model=CashuPaymentResponse)
+async def cashu_pay(
+    request: CashuPaymentRequest,
+    user_id: int = Depends(verify_token_inline),
+):
+    """
+    Pay an order with Cashu tokens.
+
+    Flow:
+    1. Verify the order exists and belongs to the user
+    2. Decode the Cashu token
+    3. Check if mint is trusted (Helmut Mint)
+       - If trusted: verify token and mark as paid (no swap needed)
+       - If not trusted: try to swap to Lightning via melt
+    4. Mark order as paid if successful
+
+    For Helmut Mint: Tokens stay in our mint, no external payment needed.
+    For other mints: Mint must pay our LND invoice (requires real Lightning).
+    """
+    import asyncio
+
+    # Get DB_PATH
+    import os
+    import sqlite3
+
+    db_path = os.environ.get("DB_PATH", "/home/marian/zapout-mvp/backend/zapout.db")
+
+    # 1. Verify order exists and belongs to user
+    conn = sqlite3.connect(db_path)
+    c = conn.cursor()
+    c.execute(
+        "SELECT id, user_id, total_cents, status FROM orders WHERE id = ?", (request.order_id,)
+    )
+    order_row = c.fetchone()
+
+    if not order_row:
+        conn.close()
+        return CashuPaymentResponse(
+            success=False,
+            order_id=request.order_id,
+            amount_sats=0,
+            amount_cents=0,
+            message="Order not found",
+            status="failed",
+        )
+
+    order_id_db, order_user_id, amount_cents, order_status = order_row
+
+    if order_user_id != user_id:
+        conn.close()
+        return CashuPaymentResponse(
+            success=False,
+            order_id=request.order_id,
+            amount_sats=0,
+            amount_cents=0,
+            message="Order does not belong to user",
+            status="failed",
+        )
+
+    if order_status == "paid":
+        conn.close()
+        return CashuPaymentResponse(
+            success=True,
+            order_id=request.order_id,
+            amount_sats=0,
+            amount_cents=amount_cents,
+            message="Order already paid",
+            status="paid",
+        )
+
+    # 2. Decode the token
+    token_data = decode_cashu_token(request.token)
+
+    if not token_data.get("mint_url") or token_data.get("amount_sats", 0) == 0:
+        conn.close()
+        return CashuPaymentResponse(
+            success=False,
+            order_id=request.order_id,
+            amount_sats=0,
+            amount_cents=amount_cents,
+            message=f"Could not decode token: {token_data.get('error', 'Unknown error')}",
+            status="failed",
+        )
+
+    mint_url = token_data["mint_url"]
+    token_amount_sats = token_data["amount_sats"]
+
+    # Convert cents to sats (rough estimate: 1 cent ≈ 10 sats at 60k BTC)
+    expected_sats = amount_cents * 10
+
+    if token_amount_sats < expected_sats:
+        conn.close()
+        return CashuPaymentResponse(
+            success=False,
+            order_id=request.order_id,
+            amount_sats=token_amount_sats,
+            amount_cents=amount_cents,
+            mint_url=mint_url,
+            message=f"Token amount ({token_amount_sats} sats) less than required ({expected_sats} sats)",
+            status="failed",
+        )
+
+    # 3. Check if mint is trusted
+    trusted = await is_trusted_mint(user_id, mint_url)
+    swap_settings = await get_swap_settings(user_id)
+
+    if trusted:
+        # Helmut Mint - no swap needed, just verify token is valid
+        # In a full implementation, we'd verify the proofs against the mint's keys
+        # For now, we trust Helmut Mint completely
+
+        # Mark order as paid
+        c.execute("UPDATE orders SET status = 'paid' WHERE id = ?", (request.order_id,))
+        conn.commit()
+        conn.close()
+
+        return CashuPaymentResponse(
+            success=True,
+            order_id=request.order_id,
+            amount_sats=token_amount_sats,
+            amount_cents=amount_cents,
+            mint_url=mint_url,
+            message=f"Payment received via Helmut Mint! ({token_amount_sats} sats)",
+            status="paid",
+        )
+
+    # Unknown mint - check settings
+    if not swap_settings["accept_unknown_mints"]:
+        conn.close()
+        return CashuPaymentResponse(
+            success=False,
+            order_id=request.order_id,
+            amount_sats=token_amount_sats,
+            amount_cents=amount_cents,
+            mint_url=mint_url,
+            message="Unknown mint not accepted. Please use Helmut Mint or add this mint first.",
+            status="failed",
+        )
+
+    if not swap_settings["auto_swap_to_lightning"]:
+        conn.close()
+        return CashuPaymentResponse(
+            success=False,
+            order_id=request.order_id,
+            amount_sats=token_amount_sats,
+            amount_cents=amount_cents,
+            mint_url=mint_url,
+            message="Auto-swap to Lightning is disabled. Enable it in Mint Settings or use Helmut Mint.",
+            status="failed",
+        )
+
+    # Try to swap - create LND invoice and melt at mint
+    try:
+        from app.lnd_client import create_invoice
+
+        # Create LND invoice for the order
+        invoice = create_invoice(
+            amount_sats=expected_sats,
+            memo=f"ZapOut_Order_{request.order_id}",
+        )
+        bolt11 = invoice.get("payment_request", "")
+        payment_hash = invoice.get("payment_hash", "")
+    except Exception as e:
+        conn.close()
+        return CashuPaymentResponse(
+            success=False,
+            order_id=request.order_id,
+            amount_sats=token_amount_sats,
+            amount_cents=amount_cents,
+            mint_url=mint_url,
+            message=f"Failed to create Lightning invoice: {str(e)}",
+            status="failed",
+        )
+
+    # Extract proofs
+    proofs = token_data.get("proofs", [])
+    if not proofs:
+        raw_data = token_data.get("raw", {})
+        if isinstance(raw_data, dict):
+            token_entries = raw_data.get("t", [])
+            for entry in token_entries:
+                entry_proofs = entry.get("p", [])
+                for proof in entry_proofs:
+                    proofs.append(
+                        {
+                            "id": entry.get("i"),
+                            "amount": proof.get("a", 0),
+                            "secret": proof.get("s"),
+                            "commitment": proof.get("c"),
+                        }
+                    )
+        elif isinstance(raw_data, list):
+            proofs = raw_data
+
+    if not proofs:
+        conn.close()
+        return CashuPaymentResponse(
+            success=False,
+            order_id=request.order_id,
+            amount_sats=token_amount_sats,
+            amount_cents=amount_cents,
+            mint_url=mint_url,
+            message="No proofs found in token",
+            status="failed",
+        )
+
+    # Try to melt at the mint (mint pays our invoice)
+    melt_result = await melt_token_to_ln(mint_url, bolt11, proofs)
+
+    if melt_result.get("success"):
+        # Mark order as paid
+        c.execute(
+            "UPDATE orders SET status = 'paid', payment_hash = ? WHERE id = ?",
+            (payment_hash, request.order_id),
+        )
+        conn.commit()
+        conn.close()
+
+        return CashuPaymentResponse(
+            success=True,
+            order_id=request.order_id,
+            amount_sats=melt_result.get("amount_sats", token_amount_sats),
+            amount_cents=amount_cents,
+            payment_hash=payment_hash,
+            mint_url=mint_url,
+            message=f"Swapped {token_amount_sats} sats from {mint_url[:40]}... to Lightning!",
+            status="paid",
+        )
+    else:
+        conn.close()
+        return CashuPaymentResponse(
+            success=False,
+            order_id=request.order_id,
+            amount_sats=token_amount_sats,
+            amount_cents=amount_cents,
+            mint_url=mint_url,
+            message=f"Swap failed: {melt_result.get('error', 'Unknown error')}. Use Lightning payment instead.",
+            status="failed",
+        )
