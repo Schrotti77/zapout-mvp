@@ -773,12 +773,27 @@ def create_token(user_id: int) -> str:
     return token
 
 
-def verify_token(authorization: str = Header(None)) -> int:
-    """Verify token and return user_id"""
-    if not authorization or not authorization.startswith("Bearer "):
-        raise AuthenticationError("Missing token")
+def verify_token(
+    authorization: str = Header(None),
+    request: Request = None,
+) -> int:
+    """Verify token and return user_id
 
-    token = authorization.replace("Bearer ", "")
+    SEC-MED-08: Supports both Authorization header and httpOnly cookie
+    Cookie is fallback if no Authorization header provided
+    """
+    token = None
+
+    # Try Authorization header first
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.replace("Bearer ", "")
+
+    # Fallback to httpOnly cookie (SEC-MED-08)
+    if not token and request:
+        token = request.cookies.get("zapout_token")
+
+    if not token:
+        raise AuthenticationError("Missing token")
 
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -880,7 +895,7 @@ def register(user: UserCreate):
 
 
 @app.post("/auth/login", response_model=TokenResponse)
-def login(credentials: UserLogin, request: Request = None):
+def login(credentials: UserLogin, request: Request = None, response: Response = None):
     """Login user with rate limiting"""
     # Rate limiting
     client_ip = request.client.host if request else "unknown"
@@ -905,6 +920,18 @@ def login(credentials: UserLogin, request: Request = None):
 
     token = create_token(user_id)
     conn.close()
+
+    # SEC-MED-08: Set httpOnly cookie for secure token storage
+    # The frontend can still use localStorage as fallback,
+    # but httpOnly cookie provides XSS protection
+    response.set_cookie(
+        key="zapout_token",
+        value=token,
+        httponly=True,  # Not accessible via JavaScript
+        secure=True,  # HTTPS only (set False for local dev)
+        samesite="lax",  # CSRF protection
+        max_age=30 * 24 * 60 * 60,  # 30 days
+    )
 
     return TokenResponse(token=token, user_id=user_id, email=credentials.email)
 
@@ -2151,22 +2178,26 @@ def verify_token_state(token_data: dict, user_id: int = Depends(verify_token)):
                     "states": states,
                 }
             else:
-                # Mint nicht erreichbar - token könnte noch gültig sein
+                # SEC-MED-07: Mint responded with error - fail closed for security
+                # If we can't verify, we should NOT assume the token is valid
                 return {
-                    "valid": True,
+                    "valid": False,
                     "amount": total_amount,
-                    "unspent": len(proofs),
+                    "unspent": 0,
                     "spent": 0,
                     "error": f"Mint responded {r.status_code}",
+                    "verification_failed": True,
                 }
         except Exception as e:
-            # Wenn Mint nicht erreichbar, nehmen wir an Token ist gültig
+            # SEC-MED-07: Mint unreachable - fail closed for security
+            # If we can't verify, we should NOT assume the token is valid
             return {
-                "valid": True,
+                "valid": False,
                 "amount": total_amount,
-                "unspent": len(proofs),
+                "unspent": 0,
                 "spent": 0,
                 "error": str(e),
+                "verification_failed": True,
             }
 
     except Exception as e:
