@@ -4,7 +4,7 @@
 **Priority:** P4
 **OWASP:** A05:2021 - Security Misconfiguration
 **File:** `backend/main.py`
-**Status:** Open
+**Status:** ✅ Fixed in commit bb4ae5d
 
 ## Description
 

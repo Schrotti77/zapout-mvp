@@ -4,7 +4,7 @@
 **Priority:** P4
 **OWASP:** A09:2021 - Security Logging and Monitoring Failures
 **File:** `backend/main.py:login()`
-**Status:** Open
+**Status:** ✅ Fixed in commit bb4ae5d
 
 ## Description
 
