@@ -472,7 +472,8 @@ async def register_passkey(request: PasskeyRegisterRequest):
 @router.post("/login")
 async def login_passkey(request: PasskeyLoginRequest):
     """
-    Authenticate with an existing passkey
+    Authenticate with an existing passkey.
+    SEC-001: Verifies assertion signature and challenge.
     """
     try:
         conn = get_db()
@@ -499,11 +500,41 @@ async def login_passkey(request: PasskeyLoginRequest):
             conn.close()
             raise HTTPException(status_code=401, detail="Passkey not found")
 
-        # Update last used
-        c.execute(
-            "UPDATE passkey_credentials SET last_used = datetime('now') WHERE id = ?",
-            (credential["id"],),
-        )
+        # SEC-001: Verify assertion if challenge provided
+        if request.challenge:
+            try:
+                assertion_result = verify_webauthn_assertion(
+                    credential=request.credential,
+                    stored_credential=dict(credential),
+                    expected_challenge=request.challenge,
+                )
+
+                # Update counter
+                new_counter = assertion_result.get("counter", 0)
+                c.execute(
+                    "UPDATE passkey_credentials SET counter = ?, last_used = datetime('now') WHERE id = ?",
+                    (
+                        new_counter,
+                        credential["id"],
+                    ),
+                )
+                print(f"Assertion verified for login: counter={new_counter}")
+            except HTTPException:
+                conn.close()
+                raise
+            except Exception as e:
+                print(f"Assertion verification failed during login: {e}")
+                conn.close()
+                raise HTTPException(
+                    status_code=401, detail=f"Assertion verification failed: {str(e)}"
+                )
+        else:
+            # Update last used without counter check
+            c.execute(
+                "UPDATE passkey_credentials SET last_used = datetime('now') WHERE id = ?",
+                (credential["id"],),
+            )
+
         conn.commit()
         conn.close()
 
@@ -681,7 +712,7 @@ class PRFLoginRequest(BaseModel):
     credential: dict
     prf_result: str
     credential_id: str
-    challenge: Optional[str] = None  # SEC-001: Server-issued challenge for replay protection
+    challenge: str  # SEC-001: REQUIRED - Server-issued challenge for replay protection
 
 
 class WalletCreateRequest(BaseModel):
@@ -774,6 +805,8 @@ async def prf_login(request: PRFLoginRequest):
     1. Challenge was issued by us and not reused
     2. Assertion signature is valid
     3. Counter increased (replay protection)
+
+    SECURITY: All verifications are REQUIRED. Login fails if any check fails.
     """
     try:
         conn = get_db()
@@ -790,72 +823,90 @@ async def prf_login(request: PRFLoginRequest):
             conn.close()
             raise HTTPException(status_code=401, detail="Passkey not found")
 
-        # SEC-001 Step 1: Verify challenge if provided
-        challenge_verified = False
-        if request.challenge:
-            c.execute(
-                """
-                SELECT id FROM passkey_challenges
-                WHERE challenge = ? AND type = 'authenticate' AND used = 0
-                AND expires_at > datetime('now')
-                """,
-                (request.challenge,),
-            )
-            challenge_row = c.fetchone()
+        # SEC-001 Step 1: Verify challenge (REQUIRED)
+        c.execute(
+            """
+            SELECT id FROM passkey_challenges
+            WHERE challenge = ? AND type = 'authenticate' AND used = 0
+            AND expires_at > datetime('now')
+            """,
+            (request.challenge,),
+        )
+        challenge_row = c.fetchone()
 
-            if challenge_row:
-                c.execute(
-                    "UPDATE passkey_challenges SET used = 1 WHERE id = ?",
-                    (challenge_row["id"],),
-                )
-                challenge_verified = True
-                print(f"Challenge verified for credential: {request.credential_id}")
-            else:
-                print(f"Invalid or expired challenge for credential: {request.credential_id}")
-
-        # SEC-001 Step 2: Verify assertion signature
-        assertion_result = None
-        if request.credential and request.challenge:
-            try:
-                assertion_result = verify_webauthn_assertion(
-                    credential=request.credential,
-                    stored_credential=dict(stored_credential),
-                    expected_challenge=request.challenge,
-                )
-                print(f"Assertion signature verified: {assertion_result}")
-            except HTTPException as e:
-                conn.close()
-                raise e
-            except Exception as e:
-                print(f"Assertion verification failed: {e}")
-                # Log but don't reject - PRF verification still helps
-        else:
-            print(
-                f"Warning: Skipping assertion verification (missing credential data or challenge)"
+        if not challenge_row:
+            conn.close()
+            raise HTTPException(
+                status_code=401, detail="Invalid or expired challenge - possible replay attack"
             )
 
-        # Get stored salt
+        # Mark challenge as used immediately
+        c.execute(
+            "UPDATE passkey_challenges SET used = 1 WHERE id = ?",
+            (challenge_row["id"],),
+        )
+        print(f"Challenge verified for credential: {request.credential_id}")
+
+        # SEC-001 Step 2: Verify assertion signature (REQUIRED)
+        if not request.credential:
+            conn.close()
+            raise HTTPException(status_code=400, detail="Missing credential data")
+
+        try:
+            assertion_result = verify_webauthn_assertion(
+                credential=request.credential,
+                stored_credential=dict(stored_credential),
+                expected_challenge=request.challenge,
+            )
+            print(f"Assertion signature verified: {assertion_result}")
+        except HTTPException:
+            conn.close()
+            raise
+        except Exception as e:
+            print(f"Assertion verification failed: {e}")
+            conn.close()
+            raise HTTPException(
+                status_code=401, detail=f"Assertion signature verification failed: {str(e)}"
+            )
+
+        # SEC-001 Step 3: Get stored salt and verify PRF
         prf_salt = stored_credential["prf_salt"]
         if not prf_salt:
             conn.close()
-            raise HTTPException(status_code=400, detail="No PRF salt found - please re-register")
+            raise HTTPException(
+                status_code=400, detail="No PRF salt found - please re-register your passkey"
+            )
 
-        # Verify PRF result matches (derive seed and compare)
+        # Verify PRF result (derive seed)
         derived_seed = derive_seed_from_prf(request.prf_result, prf_salt)
 
-        # SEC-001 Step 3: Update counter if assertion was verified
-        if assertion_result and assertion_result.get("counter") is not None:
-            c.execute(
-                "UPDATE passkey_credentials SET counter = ?, last_used = datetime('now') WHERE id = ?",
-                (assertion_result["counter"], stored_credential["id"]),
-            )
-        else:
-            c.execute(
-                "UPDATE passkey_credentials SET last_used = datetime('now') WHERE id = ?",
-                (stored_credential["id"],),
-            )
+        # SEC-001 Step 4: Update counter (replay protection)
+        new_counter = assertion_result.get("counter", 0)
+        c.execute(
+            "UPDATE passkey_credentials SET counter = ?, last_used = datetime('now') WHERE id = ?",
+            (new_counter, stored_credential["id"]),
+        )
         conn.commit()
         conn.close()
+
+        # All verifications passed - create token
+        token = create_token(stored_credential["user_id"], stored_credential["email"])
+
+        return {
+            "success": True,
+            "token": token,
+            "user_id": stored_credential["user_id"],
+            "assertion_verified": True,
+            "challenge_verified": True,
+            "counter": new_counter,
+            "message": "PRF login successful - all security checks passed",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"PRF login error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
         # Create token
         token = create_token(stored_credential["user_id"], stored_credential["email"])
