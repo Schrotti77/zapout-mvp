@@ -65,8 +65,11 @@ export default function MerchantScreen({ onBack, setScreen, setCartOpen }) {
     : null;
 
   // WebSocket for real-time payment status
+  // SEC-CRIT-02: Pass auth token for WebSocket authentication
+  const authToken = localStorage.getItem('zapout_token');
   const { isConnected } = useWebSocket(wsUrl, {
     enabled: view === 'payment' && !!wsUrl && status === 'pending',
+    token: authToken, // SEC-CRIT-02: Required for auth
     onMessage: data => {
       console.log('[WS] Merchant payment update:', data);
 

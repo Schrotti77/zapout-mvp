@@ -16,8 +16,11 @@ export default function PaymentModal({ isOpen, onClose, orderData, onStatusChang
     : null;
 
   // WebSocket connection for payment status updates
+  // SEC-CRIT-02: Pass auth token for WebSocket authentication
+  const authToken = localStorage.getItem('zapout_token');
   const { status: wsStatus, isConnected } = useWebSocket(wsUrl, {
     enabled: isOpen && paymentStatus === 'pending' && !!orderData?.payment_id,
+    token: authToken, // SEC-CRIT-02: Required for auth
     onMessage: data => {
       console.log('[WS] Payment update:', data);
 

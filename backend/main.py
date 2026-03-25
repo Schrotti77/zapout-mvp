@@ -276,6 +276,38 @@ app.add_middleware(
 )
 
 
+# SEC-CRIT-03: Security Headers Middleware
+# Adds protection against common web vulnerabilities
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    """Add security headers to all responses"""
+    response = await call_next(request)
+
+    # Prevent MIME type sniffing
+    response.headers["X-Content-Type-Options"] = "nosniff"
+
+    # Prevent clickjacking
+    response.headers["X-Frame-Options"] = "DENY"
+
+    # XSS protection (for older browsers)
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+
+    # Referrer policy - don't leak referrer to external sites
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+
+    # Content Security Policy (restrictive)
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data: https:; "
+        "connect-src 'self' https://api.coingecko.com; "
+        "frame-ancestors 'none';"
+    )
+
+    return response
+
+
 # ============================================================================
 # Middleware: Request ID + Logging
 # ============================================================================
@@ -1157,21 +1189,80 @@ def create_payment(payment: dict, user_id: int = Depends(verify_token)):
 
 # =============================================================================
 # WebSocket Endpoint (NUT-17 Real-time Payment Updates)
+# SEC-CRIT-02: Authentication required for WebSocket connections
 # =============================================================================
 @app.websocket("/ws/payments/{payment_id}")
-async def websocket_payment(websocket: WebSocket, payment_id: int):
+async def websocket_payment(websocket: WebSocket, payment_id: int, token: Optional[str] = None):
     """
     WebSocket endpoint for real-time payment status updates.
     Clients connect to receive instant notifications when a payment is settled.
 
+    SEC-CRIT-02: Authentication is now REQUIRED.
+
     Usage:
-        ws://localhost:8000/ws/payments/{payment_id}
+        ws://localhost:8000/ws/payments/{payment_id}?token={bearer_token}
 
     Messages sent to client:
         - {"type": "status_update", "status": "paid", "timestamp": "..."}
         - {"type": "error", "message": "..."}
         - {"type": "ping"} (heartbeat)
+
+    Error codes:
+        - 4001: Authentication required
+        - 4003: Payment not authorized for user
     """
+    # SEC-CRIT-02: Verify token before accepting connection
+    if not token:
+        await websocket.close(code=4001)
+        return
+
+    # Verify token and get user_id
+    try:
+        # Remove 'Bearer ' prefix if present
+        if token.startswith("Bearer "):
+            token = token.replace("Bearer ", "")
+
+        # Verify token (adapted from verify_token for WebSocket use)
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("SELECT user_id, expires_at FROM tokens WHERE token = ?", (token,))
+        row = c.fetchone()
+        conn.close()
+
+        if not row:
+            await websocket.close(code=4001)
+            return
+
+        user_id, expires_at = row
+
+        # Check token expiration
+        if expires_at:
+            exp = datetime.fromisoformat(expires_at)
+            if datetime.now(timezone.utc) > exp:
+                await websocket.close(code=4001)
+                return
+
+    except Exception:
+        await websocket.close(code=4001)
+        return
+
+    # SEC-CRIT-02: Verify payment belongs to user
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("SELECT user_id FROM orders WHERE id = ?", (payment_id,))
+        row = c.fetchone()
+        conn.close()
+
+        if not row or row[0] != user_id:
+            # Payment doesn't exist or doesn't belong to user
+            await websocket.close(code=4003)
+            return
+    except Exception:
+        await websocket.close(code=4003)
+        return
+
+    # All checks passed - accept connection
     await manager.connect(websocket, str(payment_id))
 
     # Send initial connection confirmation

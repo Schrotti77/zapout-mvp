@@ -10,9 +10,10 @@ import { useEffect, useRef, useState, useCallback } from 'react';
  * @param {function} options.onDisconnect - Callback when disconnected
  * @param {function} options.onError - Callback for errors
  * @param {boolean} options.enabled - Enable/disable the connection
+ * @param {string} options.token - Auth token for SEC-CRIT-02 WebSocket auth
  */
 export function useWebSocket(url, options = {}) {
-  const { onMessage, onConnect, onDisconnect, onError, enabled = true } = options;
+  const { onMessage, onConnect, onDisconnect, onError, enabled = true, token } = options;
 
   const [status, setStatus] = useState('disconnected'); // 'connecting' | 'connected' | 'disconnected' | 'error'
   const [lastMessage, setLastMessage] = useState(null);
@@ -28,10 +29,18 @@ export function useWebSocket(url, options = {}) {
     }
 
     setStatus('connecting');
-    console.log(`[WS] Connecting to ${url}...`);
+
+    // SEC-CRIT-02: Add token to WebSocket URL for authentication
+    let wsUrl = url;
+    if (token) {
+      const separator = url.includes('?') ? '&' : '?';
+      wsUrl = `${url}${separator}token=${encodeURIComponent(token)}`;
+    }
+
+    console.log(`[WS] Connecting to ${wsUrl}...`);
 
     try {
-      const ws = new WebSocket(url);
+      const ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {
         console.log('[WS] Connected');
@@ -110,7 +119,7 @@ export function useWebSocket(url, options = {}) {
     return () => {
       disconnect();
     };
-  }, [url, enabled]);
+  }, [url, enabled, token, connect, disconnect]);
 
   // Cleanup on unmount
   useEffect(() => {

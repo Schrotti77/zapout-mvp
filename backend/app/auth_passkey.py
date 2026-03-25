@@ -26,7 +26,10 @@ from pydantic import BaseModel
 DB_PATH = os.getenv("DB_PATH", "zapout.db")
 
 # JWT Configuration
-JWT_SECRET = os.getenv("JWT_SECRET", secrets.token_hex(32))
+# SEC-CRIT-01: JWT_SECRET must be set explicitly - no default!
+JWT_SECRET = os.getenv("JWT_SECRET")
+if not JWT_SECRET:
+    raise ValueError("JWT_SECRET environment variable is required")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRY_HOURS = 24 * 30  # 30 days
 
