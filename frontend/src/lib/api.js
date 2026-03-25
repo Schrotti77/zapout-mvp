@@ -133,6 +133,49 @@ export const api = {
 
   removeMint: url => apiFetch(`/cashu/mints?url=${encodeURIComponent(url)}`, { method: 'DELETE' }),
 
+  // Cashu Split
+  splitCheck: (token, paymentAmount, mintUrl) =>
+    apiFetch('/cashu/split-check', {
+      method: 'POST',
+      body: JSON.stringify({ token, payment_amount: paymentAmount, mint_url: mintUrl }),
+    }),
+
+  splitToken: (token, amount, mintUrl) =>
+    apiFetch('/cashu/split', {
+      method: 'POST',
+      body: JSON.stringify({ token, amount, mint_url: mintUrl }),
+    }),
+
+  // Cashu Refresh
+  refreshTokens: (tokens, mintUrl) =>
+    apiFetch('/cashu/refresh', {
+      method: 'POST',
+      body: JSON.stringify({ tokens, mint_url: mintUrl }),
+    }),
+
+  // Cashu Mint Info
+  getMintKeys: mintUrl => apiFetch(`/cashu/mint-keys?mint_url=${encodeURIComponent(mintUrl)}`),
+
+  getMintKeysets: mintUrl =>
+    apiFetch(`/cashu/mint-keysets?mint_url=${encodeURIComponent(mintUrl)}`),
+
+  // Cashu History
+  getCashuHistory: (limit = 50, offset = 0) =>
+    apiFetch(`/cashu/history?limit=${limit}&offset=${offset}`),
+
+  // User Mints Management
+  getUserMints: () => apiFetch('/cashu/user-mints'),
+
+  addUserMint: (url, name) =>
+    apiFetch('/cashu/user-mints', { method: 'POST', body: JSON.stringify({ url, name }) }),
+
+  deleteUserMint: id => apiFetch(`/cashu/user-mints/${id}`, { method: 'DELETE' }),
+
+  activateUserMint: (id, active) =>
+    apiFetch(`/cashu/user-mints/${id}/activate?active=${active}`, { method: 'PUT' }),
+
+  preferUserMint: id => apiFetch(`/cashu/user-mints/${id}/prefer`, { method: 'PUT' }),
+
   // Products
   getProducts: () => apiFetch('/products'),
 

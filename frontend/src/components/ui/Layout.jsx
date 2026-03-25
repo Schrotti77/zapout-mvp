@@ -9,6 +9,8 @@ const Layout = ({ children, title, screen, setScreen, cartOpen, setCartOpen, sho
   const navItems = [
     { screen: 'dashboard', icon: '💰', label: t('nav.home') },
     { screen: 'cashu', icon: '🪙', label: t('nav.cashu') },
+    { screen: 'mint-manager', icon: '🏦', label: 'Mints' },
+    { screen: 'token-history', icon: '📜', label: 'Historie' },
     { screen: 'swap', icon: '⚡', label: t('nav.swap') },
     { screen: 'merchant', icon: '🏪', label: t('nav.merchant') },
     { screen: 'products', icon: '🛍️', label: t('nav.products') },

@@ -10,6 +10,8 @@ import POSScreen from './screens/POSScreen';
 import AuthScreen from './screens/AuthScreen';
 import PasskeyAuthScreen from './screens/PasskeyAuthScreen';
 import MintSettingsScreen from './screens/MintSettingsScreen';
+import MintManagerScreen from './screens/MintManagerScreen';
+import TokenHistoryScreen from './screens/TokenHistoryScreen';
 import PaymentRequestScreen from './screens/PaymentRequestScreen';
 import CartDrawer from './components/CartDrawer';
 import Layout, { ScreenCard, PageTitle, SectionTitle } from './components/ui/Layout';
@@ -233,6 +235,36 @@ function App() {
         setCartOpen={setCartOpen}
       >
         <MintSettingsScreen />
+      </Layout>
+    );
+  }
+
+  // Mint Manager Screen
+  if (screen === 'mint-manager') {
+    return (
+      <Layout
+        title="Mint Manager"
+        screen={screen}
+        setScreen={setScreen}
+        cartOpen={cartOpen}
+        setCartOpen={setCartOpen}
+      >
+        <MintManagerScreen onBack={() => setScreen('dashboard')} token={token} />
+      </Layout>
+    );
+  }
+
+  // Token History Screen
+  if (screen === 'token-history') {
+    return (
+      <Layout
+        title="Token Historie"
+        screen={screen}
+        setScreen={setScreen}
+        cartOpen={cartOpen}
+        setCartOpen={setCartOpen}
+      >
+        <TokenHistoryScreen onBack={() => setScreen('dashboard')} token={token} />
       </Layout>
     );
   }
