@@ -276,6 +276,23 @@ app.add_middleware(
 )
 
 
+# SEC-LOW-09: Request body size limit middleware
+@app.middleware("http")
+async def body_size_limit(request: Request, call_next):
+    """Limit request body size to prevent memory exhaustion"""
+    max_body_size = 1_000_000  # 1MB
+
+    content_length = request.headers.get("content-length")
+    if content_length and int(content_length) > max_body_size:
+        return JSONResponse(
+            status_code=413,
+            content={"detail": "Request body too large. Maximum size is 1MB."},
+        )
+
+    response = await call_next(request)
+    return response
+
+
 # SEC-CRIT-03: Security Headers Middleware
 # Adds protection against common web vulnerabilities
 @app.middleware("http")
@@ -793,6 +810,14 @@ def verify_token(
         token = request.cookies.get("zapout_token")
 
     if not token:
+        # SEC-LOW-10: Log missing token
+        logger.warning(
+            "Auth failed - missing token",
+            extra={
+                "event": "auth_token_missing",
+                "path": str(request.url.path) if request else "unknown",
+            },
+        )
         raise AuthenticationError("Missing token")
 
     conn = sqlite3.connect(DB_PATH)
@@ -802,6 +827,14 @@ def verify_token(
     conn.close()
 
     if not row:
+        # SEC-LOW-10: Log invalid token
+        logger.warning(
+            "Auth failed - invalid token",
+            extra={
+                "event": "auth_token_invalid",
+                "path": str(request.url.path) if request else "unknown",
+            },
+        )
         raise AuthenticationError("Invalid token")
 
     user_id, expires_at = row
@@ -909,17 +942,49 @@ def login(credentials: UserLogin, request: Request = None, response: Response = 
     row = c.fetchone()
 
     if not row:
+        # SEC-LOW-10: Log failed login attempt (user not found)
+        logger.warning(
+            "Login failed - user not found",
+            extra={
+                "event": "auth_login_failed",
+                "reason": "user_not_found",
+                "email": credentials.email,
+                "ip": client_ip,
+            },
+        )
         conn.close()
         raise AuthenticationError("Invalid credentials")
 
     user_id, password_hash = row
 
     if not verify_password(credentials.password, password_hash):
+        # SEC-LOW-10: Log failed login attempt (wrong password)
+        logger.warning(
+            "Login failed - invalid password",
+            extra={
+                "event": "auth_login_failed",
+                "reason": "invalid_password",
+                "user_id": user_id,
+                "email": credentials.email,
+                "ip": client_ip,
+            },
+        )
         conn.close()
         raise AuthenticationError("Invalid credentials")
 
     token = create_token(user_id)
     conn.close()
+
+    # SEC-LOW-10: Log successful login
+    logger.info(
+        "Login successful",
+        extra={
+            "event": "auth_login_success",
+            "user_id": user_id,
+            "email": credentials.email,
+            "ip": client_ip,
+        },
+    )
 
     # SEC-MED-08: Set httpOnly cookie for secure token storage
     # The frontend can still use localStorage as fallback,
