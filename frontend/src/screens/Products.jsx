@@ -402,7 +402,23 @@ export default function Products({ onBack, setScreen, setCartOpen }) {
         }}
       >
         <h2 style={{ fontSize: '18px', fontWeight: '600', color: '#ffffff' }}>🛍️ Produkte</h2>
-        <span style={{ color: '#666666', fontSize: '14px' }}>{products.length} Produkte</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span style={{ color: '#666666', fontSize: '14px' }}>{products.length} Produkte</span>
+          <button
+            onClick={() => setScreen && setScreen('categories')}
+            style={{
+              padding: '6px 12px',
+              borderRadius: '8px',
+              border: '1px solid #333',
+              backgroundColor: 'transparent',
+              color: '#888',
+              fontSize: '12px',
+              cursor: 'pointer',
+            }}
+          >
+            📂 Kategorien
+          </button>
+        </div>
       </div>
 
       {/* Add Button */}

@@ -536,6 +536,105 @@ def init_db():
     """
     )
 
+    # Categories table - for POS product organization
+    c.execute(
+        """
+        CREATE TABLE IF NOT EXISTS categories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            icon TEXT DEFAULT '📦',
+            sort_order INTEGER DEFAULT 0,
+            color TEXT DEFAULT '#f7931a',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id),
+            UNIQUE(user_id, name)
+        )
+    """
+    )
+
+    # Products table
+    c.execute(
+        """
+        CREATE TABLE IF NOT EXISTS products (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            price_cents INTEGER NOT NULL,
+            description TEXT,
+            image_url TEXT,
+            category_id INTEGER,
+            category TEXT,
+            sku TEXT,
+            vat_rate INTEGER DEFAULT 19,
+            is_active INTEGER DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id),
+            FOREIGN KEY (category_id) REFERENCES categories(id)
+        )
+    """
+    )
+
+    # Cart items table
+    c.execute(
+        """
+        CREATE TABLE IF NOT EXISTS cart_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            product_id INTEGER NOT NULL,
+            quantity INTEGER DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id),
+            FOREIGN KEY (product_id) REFERENCES products(id)
+        )
+    """
+    )
+
+    # Orders table
+    c.execute(
+        """
+        CREATE TABLE IF NOT EXISTS orders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            order_id TEXT UNIQUE NOT NULL,
+            total_cents INTEGER NOT NULL,
+            tip_cents INTEGER DEFAULT 0,
+            tip_percentage INTEGER DEFAULT 0,
+            method TEXT DEFAULT 'lightning',
+            status TEXT DEFAULT 'pending',
+            bolt11 TEXT,
+            payment_hash TEXT,
+            paid_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    """
+    )
+
+    # Order items table
+    c.execute(
+        """
+        CREATE TABLE IF NOT EXISTS order_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            order_id INTEGER NOT NULL,
+            product_id INTEGER,
+            product_name TEXT NOT NULL,
+            price_cents INTEGER NOT NULL,
+            quantity INTEGER DEFAULT 1,
+            vat_rate INTEGER DEFAULT 19,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (order_id) REFERENCES orders(id),
+            FOREIGN KEY (product_id) REFERENCES products(id)
+        )
+    """
+    )
+
+    # Migrate: add category_id column if products exists but column is missing
+    try:
+        c.execute("ALTER TABLE products ADD COLUMN category_id INTEGER")
+    except sqlite3.OperationalError:
+        pass  # Column already exists
+
     conn.commit()
     conn.close()
 
@@ -791,6 +890,139 @@ def get_payments(user_id: int = Depends(verify_token)):
         }
         for p in payments
     ]
+
+
+@app.get("/reports/daily")
+def get_daily_report(
+    date: Optional[str] = None,  # YYYY-MM-DD format, defaults to today
+    user_id: int = Depends(verify_token),
+):
+    """
+    Get daily sales report for a specific date.
+    Includes total sales, transaction count, average transaction,
+    VAT breakdown, and payment method breakdown.
+    """
+    if date is None:
+        date = datetime.now().strftime("%Y-%m-%d")
+
+    # Validate date format
+    try:
+        datetime.strptime(date, "%Y-%m-%d")
+    except ValueError:
+        raise ValidationError("Invalid date format. Use YYYY-MM-DD")
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+
+    # Get orders for the date
+    c.execute(
+        """
+        SELECT id, total_cents, tip_cents, method, status, created_at
+        FROM orders
+        WHERE user_id=? AND date(created_at) = ? AND status = 'completed'
+        ORDER BY created_at DESC
+        """,
+        (user_id, date),
+    )
+    orders = c.fetchall()
+
+    # Calculate totals
+    total_sales_cents = sum(o[1] or 0 for o in orders)
+    total_tips_cents = sum(o[2] or 0 for o in orders)
+    transaction_count = len(orders)
+    avg_transaction = total_sales_cents / transaction_count if transaction_count > 0 else 0
+
+    # Payment method breakdown
+    method_breakdown = defaultdict(lambda: {"count": 0, "total_cents": 0})
+    for o in orders:
+        method_breakdown[o[3]]["count"] += 1
+        method_breakdown[o[3]]["total_cents"] += o[1] or 0
+
+    # Lightning stats
+    lightning_orders = [o for o in orders if o[3] == "lightning"]
+    cashu_orders = [o for o in orders if o[3] == "cashu"]
+
+    # Get hourly breakdown
+    hourly_breakdown = defaultdict(lambda: {"count": 0, "total_cents": 0})
+    for o in orders:
+        hour = datetime.fromisoformat(o[5]).strftime("%H:00")
+        hourly_breakdown[hour]["count"] += 1
+        hourly_breakdown[hour]["total_cents"] += o[1] or 0
+
+    conn.close()
+
+    return {
+        "date": date,
+        "total_sales_cents": total_sales_cents,
+        "total_sales_eur": total_sales_cents / 100,
+        "total_tips_cents": total_tips_cents,
+        "transaction_count": transaction_count,
+        "avg_transaction_cents": round(avg_transaction),
+        "avg_transaction_eur": round(avg_transaction) / 100,
+        "lightning": {
+            "count": len(lightning_orders),
+            "total_cents": sum(o[1] or 0 for o in lightning_orders),
+        },
+        "cashu": {
+            "count": len(cashu_orders),
+            "total_cents": sum(o[1] or 0 for o in cashu_orders),
+        },
+        "hourly": dict(hourly_breakdown),
+        "currency": "EUR",
+    }
+
+
+@app.get("/reports/date-range")
+def get_date_range_report(
+    start_date: str,  # YYYY-MM-DD
+    end_date: str,  # YYYY-MM-DD
+    user_id: int = Depends(verify_token),
+):
+    """
+    Get sales report for a date range.
+    Returns daily totals for each day in the range.
+    """
+    # Validate date formats
+    try:
+        start = datetime.strptime(start_date, "%Y-%m-%d")
+        end = datetime.strptime(end_date, "%Y-%m-%d")
+    except ValueError:
+        raise ValidationError("Invalid date format. Use YYYY-MM-DD")
+
+    if start > end:
+        raise ValidationError("start_date must be before end_date")
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+
+    c.execute(
+        """
+        SELECT date(created_at) as day,
+               COUNT(*) as count,
+               SUM(total_cents) as total
+        FROM orders
+        WHERE user_id=? AND date(created_at) BETWEEN ? AND ? AND status = 'completed'
+        GROUP BY day
+        ORDER BY day
+        """,
+        (user_id, start_date, end_date),
+    )
+    rows = c.fetchall()
+    conn.close()
+
+    return {
+        "start_date": start_date,
+        "end_date": end_date,
+        "days": [
+            {
+                "date": r[0],
+                "transaction_count": r[1],
+                "total_cents": r[2] or 0,
+                "total_eur": (r[2] or 0) / 100,
+            }
+            for r in rows
+        ],
+    }
 
 
 @app.get("/payments/{payment_id}")
@@ -1354,6 +1586,142 @@ def delete_product(product_id: int, user_id: int = Depends(verify_token)):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("DELETE FROM products WHERE id=? AND user_id=?", (product_id, user_id))
+    conn.commit()
+    conn.close()
+    return {"success": True}
+
+
+# ============================================
+# CATEGORIES - POS product organization
+# ============================================
+
+
+class CategoryCreate(BaseModel):
+    name: str
+    icon: Optional[str] = "📦"
+    sort_order: Optional[int] = 0
+    color: Optional[str] = "#f7931a"
+
+
+class CategoryUpdate(BaseModel):
+    name: Optional[str] = None
+    icon: Optional[str] = None
+    sort_order: Optional[int] = None
+    color: Optional[str] = None
+
+
+@app.get("/categories")
+def get_categories(user_id: int = Depends(verify_token)):
+    """Get all categories for user"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute(
+        """
+        SELECT id, name, icon, sort_order, color, created_at
+        FROM categories WHERE user_id=? ORDER BY sort_order, name
+        """,
+        (user_id,),
+    )
+    rows = c.fetchall()
+    conn.close()
+    return [
+        {
+            "id": r[0],
+            "name": r[1],
+            "icon": r[2],
+            "sort_order": r[3],
+            "color": r[4],
+            "created_at": r[5],
+        }
+        for r in rows
+    ]
+
+
+@app.post("/categories")
+def create_category(category: CategoryCreate, user_id: int = Depends(verify_token)):
+    """Create a new category"""
+    if not category.name or len(category.name.strip()) == 0:
+        raise ValidationError("Category name is required")
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    try:
+        c.execute(
+            """
+            INSERT INTO categories (user_id, name, icon, sort_order, color)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (user_id, category.name.strip(), category.icon, category.sort_order, category.color),
+        )
+        category_id = c.lastrowid
+        conn.commit()
+        conn.close()
+        return {
+            "success": True,
+            "id": category_id,
+            "name": category.name,
+            "icon": category.icon,
+            "sort_order": category.sort_order,
+            "color": category.color,
+        }
+    except sqlite3.IntegrityError:
+        conn.close()
+        raise ConflictError("Category", f"Category '{category.name}' already exists")
+
+
+@app.put("/categories/{category_id}")
+def update_category(
+    category_id: int, category: CategoryUpdate, user_id: int = Depends(verify_token)
+):
+    """Update a category"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+
+    # Check ownership
+    c.execute("SELECT id FROM categories WHERE id=? AND user_id=?", (category_id, user_id))
+    if not c.fetchone():
+        conn.close()
+        raise NotFoundError("Category", str(category_id))
+
+    # Build update dynamically
+    updates = []
+    params = []
+    if category.name is not None:
+        updates.append("name=?")
+        params.append(category.name.strip())
+    if category.icon is not None:
+        updates.append("icon=?")
+        params.append(category.icon)
+    if category.sort_order is not None:
+        updates.append("sort_order=?")
+        params.append(category.sort_order)
+    if category.color is not None:
+        updates.append("color=?")
+        params.append(category.color)
+
+    if updates:
+        params.extend([category_id, user_id])
+        c.execute(f"UPDATE categories SET {', '.join(updates)} WHERE id=? AND user_id=?", params)
+
+    conn.commit()
+    conn.close()
+    return {"success": True, "id": category_id}
+
+
+@app.delete("/categories/{category_id}")
+def delete_category(category_id: int, user_id: int = Depends(verify_token)):
+    """Delete a category (products will have NULL category_id)"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+
+    # Set products in this category to NULL category_id (keep their category name)
+    c.execute(
+        "UPDATE products SET category_id=NULL WHERE category_id=? AND user_id=?",
+        (category_id, user_id),
+    )
+
+    # Delete category
+    c.execute("DELETE FROM categories WHERE id=? AND user_id=?", (category_id, user_id))
     conn.commit()
     conn.close()
     return {"success": True}

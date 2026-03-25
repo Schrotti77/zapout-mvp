@@ -13,6 +13,7 @@ import MintSettingsScreen from './screens/MintSettingsScreen';
 import MintManagerScreen from './screens/MintManagerScreen';
 import TokenHistoryScreen from './screens/TokenHistoryScreen';
 import PaymentRequestScreen from './screens/PaymentRequestScreen';
+import CategoryManagerScreen from './screens/CategoryManagerScreen';
 import CartDrawer from './components/CartDrawer';
 import Layout, { ScreenCard, PageTitle, SectionTitle } from './components/ui/Layout';
 import { useTranslation } from 'react-i18next';
@@ -280,6 +281,21 @@ function App() {
         setCartOpen={setCartOpen}
       >
         <Products onBack={() => setScreen('dashboard')} setScreen={setScreen} />
+      </Layout>
+    );
+  }
+
+  // Categories Manager Screen
+  if (screen === 'categories') {
+    return (
+      <Layout
+        title="Kategorien"
+        screen={screen}
+        setScreen={setScreen}
+        cartOpen={cartOpen}
+        setCartOpen={setCartOpen}
+      >
+        <CategoryManagerScreen onBack={() => setScreen('products')} />
       </Layout>
     );
   }

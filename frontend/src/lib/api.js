@@ -206,6 +206,23 @@ export const api = {
 
   // BTC Price
   getBtcPrice: () => apiFetch('/btc/price'),
+
+  // Categories
+  getCategories: () => apiFetch('/categories'),
+
+  createCategory: category =>
+    apiFetch('/categories', { method: 'POST', body: JSON.stringify(category) }),
+
+  updateCategory: (id, category) =>
+    apiFetch(`/categories/${id}`, { method: 'PUT', body: JSON.stringify(category) }),
+
+  deleteCategory: id => apiFetch(`/categories/${id}`, { method: 'DELETE' }),
+
+  // Reports
+  getDailyReport: date => apiFetch(`/reports/daily${date ? `?date=${date}` : ''}`),
+
+  getDateRangeReport: (startDate, endDate) =>
+    apiFetch(`/reports/date-range?start_date=${startDate}&end_date=${endDate}`),
 };
 
 export { API_URL };
