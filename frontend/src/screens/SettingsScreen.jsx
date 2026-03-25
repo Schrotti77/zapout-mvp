@@ -20,6 +20,21 @@ const sectionTitleStyle = {
   fontWeight: '600',
 };
 
+const menuItemStyle = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  width: '100%',
+  padding: '14px 0',
+  backgroundColor: 'transparent',
+  border: 'none',
+  borderBottom: '1px solid #222222',
+  color: '#ffffff',
+  fontSize: '15px',
+  cursor: 'pointer',
+  textAlign: 'left',
+};
+
 const labelStyle = {
   color: '#888888',
   fontSize: '13px',
@@ -280,6 +295,35 @@ export default function SettingsScreen({ onBack, onNavigate }) {
           <div style={labelStyle}>{t('settings.memberSince')}</div>
           <div style={valueStyle}>{formatDate(user?.created_at)}</div>
         </div>
+      </div>
+
+      {/* Reports Section */}
+      <div style={cardStyle}>
+        <div style={sectionTitleStyle}>📊 Berichte</div>
+
+        <button onClick={() => onNavigate && onNavigate('daily-report')} style={menuItemStyle}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span>📈</span>
+            <span>Tagesbericht</span>
+          </span>
+          <span style={{ color: '#666666' }}>→</span>
+        </button>
+
+        <button onClick={() => onNavigate && onNavigate('products')} style={menuItemStyle}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span>🛍️</span>
+            <span>Produkte</span>
+          </span>
+          <span style={{ color: '#666666' }}>→</span>
+        </button>
+
+        <button onClick={() => onNavigate && onNavigate('categories')} style={menuItemStyle}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span>📂</span>
+            <span>Kategorien</span>
+          </span>
+          <span style={{ color: '#666666' }}>→</span>
+        </button>
       </div>
 
       {/* Lightning Node Section */}

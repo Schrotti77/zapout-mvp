@@ -170,6 +170,7 @@ const cashuButtonStyle = {
 export default function POSScreen({ onBack, onPaymentRequest }) {
   const { t } = useTranslation();
   const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState([]); // Categories with icons
   const [cart, setCart] = useState([]);
   const [vatBreakdown, setVatBreakdown] = useState({});
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -187,6 +188,21 @@ export default function POSScreen({ onBack, onPaymentRequest }) {
     { label: '+15%', value: 15 },
     { label: '+20%', value: 20 },
   ];
+
+  // Fetch categories with icons
+  useEffect(() => {
+    const token = localStorage.getItem('zapout_token');
+    fetch(`${API_URL}/categories`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setCategories(data);
+        }
+      })
+      .catch(console.error);
+  }, []);
 
   // Fetch products
   useEffect(() => {
@@ -218,8 +234,7 @@ export default function POSScreen({ onBack, onPaymentRequest }) {
       });
   }, []);
 
-  const categories = ['all', ...new Set(products.map(p => p.category || 'Sonstiges'))];
-
+  // Filter products by category
   const filteredProducts =
     selectedCategory === 'all'
       ? products
@@ -645,15 +660,35 @@ export default function POSScreen({ onBack, onPaymentRequest }) {
         <div style={totalStyle}>{formatPrice(totalCents)}</div>
       </div>
 
-      {/* Categories */}
+      {/* Categories with Icons */}
       <div style={categoryBarStyle}>
+        <button
+          onClick={() => setSelectedCategory('all')}
+          style={{
+            ...categoryButton(selectedCategory === 'all'),
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+          }}
+        >
+          <span>🍽️</span>
+          <span>Alle</span>
+        </button>
         {categories.map(cat => (
           <button
-            key={cat}
-            onClick={() => setSelectedCategory(cat)}
-            style={categoryButton(selectedCategory === cat)}
+            key={cat.id}
+            onClick={() => setSelectedCategory(cat.name)}
+            style={{
+              ...categoryButton(selectedCategory === cat.name),
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              backgroundColor:
+                selectedCategory === cat.name ? (cat.color || '#2A2A2A') + '40' : undefined,
+            }}
           >
-            {cat === 'all' ? '🍽️ Alle' : cat}
+            <span>{cat.icon || '📦'}</span>
+            <span>{cat.name}</span>
           </button>
         ))}
       </div>

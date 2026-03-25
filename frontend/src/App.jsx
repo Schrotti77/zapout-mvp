@@ -14,6 +14,7 @@ import MintManagerScreen from './screens/MintManagerScreen';
 import TokenHistoryScreen from './screens/TokenHistoryScreen';
 import PaymentRequestScreen from './screens/PaymentRequestScreen';
 import CategoryManagerScreen from './screens/CategoryManagerScreen';
+import DailyReportScreen from './screens/DailyReportScreen';
 import CartDrawer from './components/CartDrawer';
 import Layout, { ScreenCard, PageTitle, SectionTitle } from './components/ui/Layout';
 import { useTranslation } from 'react-i18next';
@@ -296,6 +297,21 @@ function App() {
         setCartOpen={setCartOpen}
       >
         <CategoryManagerScreen onBack={() => setScreen('products')} />
+      </Layout>
+    );
+  }
+
+  // Daily Report Screen
+  if (screen === 'daily-report') {
+    return (
+      <Layout
+        title="Tagesbericht"
+        screen={screen}
+        setScreen={setScreen}
+        cartOpen={cartOpen}
+        setCartOpen={setCartOpen}
+      >
+        <DailyReportScreen onBack={() => setScreen('dashboard')} />
       </Layout>
     );
   }
