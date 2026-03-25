@@ -4,7 +4,7 @@
 **Priority:** P3
 **OWASP:** A07:2021 - Identification and Authentication Failures
 **File:** `frontend/src/lib/api.js:29`
-**Status:** Open
+**Status:** ✅ Fixed in commit 0eeb618
 
 ## Description
 
