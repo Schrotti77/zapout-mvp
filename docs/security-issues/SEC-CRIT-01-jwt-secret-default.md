@@ -4,7 +4,7 @@
 **Priority:** P1
 **OWASP:** A02:2021 - Cryptographic Failures
 **File:** `backend/app/auth_passkey.py:32`
-**Status:** Open
+**Status:** ✅ Fixed in commit 95b2827
 
 ## Description
 

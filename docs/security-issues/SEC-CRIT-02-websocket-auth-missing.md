@@ -4,7 +4,7 @@
 **Priority:** P1
 **OWASP:** A01:2021 - Broken Access Control
 **File:** `backend/main.py:605`
-**Status:** Open
+**Status:** ✅ Fixed in commit 95b2827
 
 ## Description
 
