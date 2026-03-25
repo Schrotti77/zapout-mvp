@@ -4,7 +4,7 @@
 **Priority:** P2
 **OWASP:** A02:2021 - Cryptographic Failures
 **File:** `backend/main.py:588`
-**Status:** Open
+**Status:** ✅ Fixed in commit e245a51
 
 ## Description
 

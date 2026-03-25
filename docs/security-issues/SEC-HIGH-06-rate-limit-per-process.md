@@ -4,7 +4,7 @@
 **Priority:** P2
 **OWASP:** A01:2021 - Broken Access Control / A04:2021 - Insecure Design
 **File:** `backend/main.py:282`
-**Status:** Open
+**Status:** ✅ Fixed (documented) in commit e245a51
 
 ## Description
 
