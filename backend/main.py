@@ -391,11 +391,20 @@ async def generic_error_handler(request: Request, error: Exception):
 from collections import defaultdict
 from time import time
 
+# SEC-HIGH-06: Per-process rate limiting (in-memory)
+# Limitation: In multi-worker deployments, each worker has separate rate limit state.
+# For production with multiple workers, use Redis-based rate limiting:
+#   - upstash/ratelimit: https://github.com/upstash/ratelimit-python
+#   - Or slowapi with Redis backend
 login_attempts: Dict[str, List[float]] = defaultdict(list)
 
 
 def check_rate_limit(ip: str) -> bool:
-    """Check if IP has exceeded rate limit"""
+    """Check if IP has exceeded rate limit
+
+    Note: This is per-process. For multi-worker deployments,
+    use Redis-based rate limiting (see SEC-HIGH-06 documentation).
+    """
     now = time()
     # Clean old attempts
     login_attempts[ip] = [t for t in login_attempts[ip] if now - t < settings.rate_limit_window]
@@ -726,8 +735,11 @@ class PaymentResponse(BaseModel):
 
 # Helpers
 def hash_password(password: str) -> str:
-    """Password hashing with bcrypt (salt included)"""
-    salt = bcrypt.gensalt()
+    """Password hashing with bcrypt (salt included)
+
+    SEC-HIGH-05: Using explicit rounds=12 (OWASP 2023 recommendation)
+    """
+    salt = bcrypt.gensalt(rounds=12)
     return bcrypt.hashpw(password.encode(), salt).decode()
 
 
@@ -2939,6 +2951,7 @@ def payment_amount_mock(amount: int) -> str:
 
 
 # Merchant Payment Request (Quick Payment)
+# SEC-HIGH-04: Added user verification before creating order
 @app.post("/merchant/payment-request")
 def create_merchant_payment_request(request: dict, user_id: int = Depends(verify_token)):
     """Create a payment request for quick merchant payments"""
@@ -2949,6 +2962,16 @@ def create_merchant_payment_request(request: dict, user_id: int = Depends(verify
         raise ValidationError(
             "amount_cents required", field_errors=[{"field": "amount_cents", "message": "Required"}]
         )
+
+    # SEC-HIGH-04: Verify user exists before creating order
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT id FROM users WHERE id = ?", (user_id,))
+    user_row = c.fetchone()
+    if not user_row:
+        conn.close()
+        raise NotFoundError("User", str(user_id))
+    conn.close()
 
     # EUR zu Sats Konvertierung (ca. 1 cent = 10 sats bei ~60k BTC)
     amount_sats = amount_cents * 10
