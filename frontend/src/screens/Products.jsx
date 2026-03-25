@@ -10,6 +10,8 @@ import { Skeleton } from '../components/ui/Skeleton';
 import { ErrorAlert } from '../components/ui/ErrorBanner';
 import { getErrorMessage } from '../lib/api.js';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
 const cardStyle = {
   backgroundColor: '#141414',
   border: '1px solid #222222',
@@ -157,9 +159,9 @@ export default function Products({ onBack, setScreen, setCartOpen }) {
   };
 
   const handleAddToCart = async product => {
-    const token = getToken();
+    const token = localStorage.getItem('zapout_token');
     if (!token) {
-      setError('Bitte einloggen!');
+      alert('Bitte einloggen!');
       return;
     }
     try {
@@ -181,7 +183,7 @@ export default function Products({ onBack, setScreen, setCartOpen }) {
         setTimeout(() => (btn.textContent = '🛒'), 1500);
       }
     } catch (err) {
-      setError('Fehler: ' + err.message);
+      alert('Fehler: ' + err.message);
     }
   };
 
