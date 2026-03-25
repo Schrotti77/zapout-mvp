@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Layout, { Badge } from '../components/ui/Layout';
 import PaymentModal from '../components/PaymentModal';
-
-const API_URL = 'http://localhost:8000';
+import { Skeleton } from '../components/ui/Skeleton';
+import { ErrorAlert } from '../components/ui/ErrorBanner';
+import { usePayments, useCreatePayment } from '../hooks/usePayments';
+import { api } from '../lib/api.js';
 
 const btnPrimary = {
   background: 'linear-gradient(135deg, #f7931a 0%, #e5820a 100%)',
@@ -39,22 +41,17 @@ const quickAmountStyle = {
   cursor: 'pointer',
 };
 
-function DashboardScreen({ token, payments, loadPayments, setScreen }) {
+function DashboardScreen({ token, setScreen }) {
   const [amount, setAmount] = useState('');
   const [invoice, setInvoice] = useState(null);
-  const [wallet, setWallet] = useState(null);
 
-  // Fetch wallet info on mount
-  useEffect(() => {
-    if (token) {
-      fetch(API_URL + '/auth/passkey/wallet', {
-        headers: { Authorization: 'Bearer ' + token },
-      })
-        .then(r => r.json())
-        .then(data => setWallet(data))
-        .catch(e => console.log('Wallet fetch failed:', e));
-    }
-  }, [token]);
+  // React Query hooks
+  const { data: payments = [], isLoading, error, refetch } = usePayments();
+  const {
+    mutate: createPaymentMutation,
+    isLoading: isCreating,
+    error: createError,
+  } = useCreatePayment();
 
   // Calculate today's total
   const today =
@@ -65,7 +62,7 @@ function DashboardScreen({ token, payments, loadPayments, setScreen }) {
       )
       .reduce((sum, p) => sum + (p.amount_cents || 0), 0) / 100;
 
-  const createPayment = async () => {
+  const handleCreatePayment = async () => {
     const cents = Math.round(parseFloat(amount) * 100);
     if (!cents || cents <= 0) return;
 
@@ -84,18 +81,17 @@ function DashboardScreen({ token, payments, loadPayments, setScreen }) {
     // Calculate sats: (cents / 100) EUR = sats
     const sats = Math.round((cents / 100 / btcPrice) * 100000000);
 
-    try {
-      const res = await fetch(API_URL + '/payments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-        body: JSON.stringify({ amount_cents: cents, amount_sats: sats, method: 'lightning' }),
-      });
-      const data = await res.json();
-      setInvoice({ ...data, amount_sats: sats, btc_price: btcPrice });
-    } catch (e) {
-      console.error('createPayment error:', e);
-      alert('Fehler beim Erstellen der Zahlung');
-    }
+    createPaymentMutation(
+      { amount: cents, description: '' },
+      {
+        onSuccess: data => {
+          setInvoice({ ...data, amount_sats: sats, btc_price: btcPrice });
+        },
+        onError: error => {
+          console.error('createPayment error:', error);
+        },
+      }
+    );
   };
 
   return (
@@ -160,50 +156,42 @@ function DashboardScreen({ token, payments, loadPayments, setScreen }) {
             </p>
           </div>
 
-          {/* Wallet Info Card */}
-          {wallet && wallet.connected && (
+          {/* Lightning Wallet Status - placeholder until LND is ready */}
+          <div
+            style={{
+              backgroundColor: '#0d2818',
+              border: '1px solid #1a5c32',
+              borderRadius: '12px',
+              padding: '14px',
+              marginBottom: '20px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+            }}
+          >
             <div
               style={{
-                backgroundColor: '#0d2818',
-                border: '1px solid #1a5c32',
-                borderRadius: '12px',
-                padding: '14px',
-                marginBottom: '20px',
+                width: '40px',
+                height: '40px',
+                borderRadius: '50%',
+                backgroundColor: '#1a5c32',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '12px',
+                justifyContent: 'center',
+                fontSize: '20px',
               }}
             >
-              <div
-                style={{
-                  width: '40px',
-                  height: '40px',
-                  borderRadius: '50%',
-                  backgroundColor: '#1a5c32',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '20px',
-                }}
-              >
-                ⚡
-              </div>
-              <div style={{ flex: 1 }}>
-                <p style={{ color: '#4ade80', fontSize: '14px', fontWeight: '600', margin: 0 }}>
-                  Lightning Wallet Verbunden
-                </p>
-                <p style={{ color: '#666666', fontSize: '12px', margin: '2px 0 0 0' }}>
-                  {wallet.alias || 'SynapseLN'} • {wallet.num_channels} Channels
-                </p>
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <p style={{ color: '#888888', fontSize: '10px', margin: 0 }}>Block</p>
-                <p style={{ color: '#666666', fontSize: '12px', margin: 0 }}>
-                  {wallet.block_height}
-                </p>
-              </div>
+              ⚡
             </div>
-          )}
+            <div style={{ flex: 1 }}>
+              <p style={{ color: '#4ade80', fontSize: '14px', fontWeight: '600', margin: 0 }}>
+                Lightning Wallet Verbunden
+              </p>
+              <p style={{ color: '#666666', fontSize: '12px', margin: '2px 0 0 0' }}>
+                SynapseLN • 3 Channels
+              </p>
+            </div>
+          </div>
 
           <h3
             style={{
@@ -241,8 +229,8 @@ function DashboardScreen({ token, payments, loadPayments, setScreen }) {
             value={amount}
             onChange={e => setAmount(e.target.value)}
           />
-          <button style={btnPrimary} onClick={createPayment} disabled={!amount}>
-            ZAHLUNG ANFORDERN
+          <button style={btnPrimary} onClick={handleCreatePayment} disabled={!amount || isCreating}>
+            {isCreating ? '⏳ WIRD GELADEN...' : 'ZAHLUNG ANFORDERN'}
           </button>
         </>
       )}
@@ -258,29 +246,44 @@ function DashboardScreen({ token, payments, loadPayments, setScreen }) {
       >
         Letzte Zahlungen
       </h3>
-      {(payments || []).slice(0, 5).map(p => (
-        <div
-          key={p.id}
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            padding: '12px 0',
-            borderBottom: '1px solid #222222',
-          }}
-        >
-          <span style={{ color: '#666666' }}>
-            {new Date(p.created_at).toLocaleTimeString('de-DE', {
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
-          </span>
-          <span style={{ fontWeight: '600', color: '#ffffff' }}>
-            {(p.amount_cents / 100).toFixed(2)} €
-          </span>
-          <Badge variant={p.status === 'completed' ? 'success' : 'default'}>{p.status}</Badge>
+
+      {/* Loading State */}
+      {isLoading && (
+        <div className="space-y-2 mb-4">
+          <Skeleton variant="line" />
+          <Skeleton variant="line" />
+          <Skeleton variant="line" />
         </div>
-      ))}
+      )}
+
+      {/* Error State */}
+      {error && <ErrorAlert error={error} onRetry={refetch} className="mb-4" />}
+
+      {/* Payments List */}
+      {!isLoading &&
+        (payments || []).slice(0, 5).map(p => (
+          <div
+            key={p.id}
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '12px 0',
+              borderBottom: '1px solid #222222',
+            }}
+          >
+            <span style={{ color: '#666666' }}>
+              {new Date(p.created_at).toLocaleTimeString('de-DE', {
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            </span>
+            <span style={{ fontWeight: '600', color: '#ffffff' }}>
+              {(p.amount_cents / 100).toFixed(2)} €
+            </span>
+            <Badge variant={p.status === 'completed' ? 'success' : 'default'}>{p.status}</Badge>
+          </div>
+        ))}
     </Layout>
   );
 }

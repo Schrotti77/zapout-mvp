@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import PaymentModal from './PaymentModal';
 
-const API_URL = 'http://localhost:8000';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 export default function CartDrawer({ isOpen, onClose, setScreen }) {
   const [items, setItems] = useState([]);

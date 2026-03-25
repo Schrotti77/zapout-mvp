@@ -12,7 +12,7 @@ export default function PaymentModal({ isOpen, onClose, orderData, onStatusChang
 
   // WebSocket URL for real-time updates (NUT-17)
   const wsUrl = orderData?.payment_id
-    ? `ws://localhost:8000/ws/payments/${orderData.payment_id}`
+    ? `ws://${window.location.hostname}:8000/ws/payments/${orderData.payment_id}`
     : null;
 
   // WebSocket connection for payment status updates

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket';
 
-const API_URL = 'http://localhost:8000';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 const cardStyle = {
   backgroundColor: '#141414',
@@ -61,7 +61,7 @@ export default function MerchantScreen({ onBack, setScreen, setCartOpen }) {
 
   // WebSocket URL for payment updates (NUT-17)
   const wsUrl = paymentRequest?.quote_id
-    ? `ws://localhost:8000/ws/payments/${paymentRequest.quote_id}`
+    ? `ws://${window.location.hostname}:8000/ws/payments/${paymentRequest.quote_id}`
     : null;
 
   // WebSocket for real-time payment status

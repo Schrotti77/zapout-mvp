@@ -2,8 +2,6 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { QRCodeSVG } from 'qrcode.react';
 
-const API_URL = 'http://localhost:8000';
-
 // Design System Tokens
 const surface = '#131313';
 const surfaceContainerLow = '#1C1B1B';
@@ -24,6 +22,62 @@ export default function PaymentRequestScreen({ orderId, amountSats, bolt11, onBa
   const [paymentStatus, setPaymentStatus] = useState('pending'); // pending, confirmed, failed
   const [statusMessage, setStatusMessage] = useState('Warte auf Zahlung...');
   const [copied, setCopied] = useState(false);
+  const [btcPrice, setBtcPrice] = useState(null);
+
+  // Fetch live BTC price
+  useEffect(() => {
+    const fetchBtcPrice = async () => {
+      try {
+        const res = await fetch(
+          'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd'
+        );
+        const data = await res.json();
+        const price = data?.bitcoin?.usd;
+        if (price) {
+          setBtcPrice(price);
+          // Update the USD display
+          const usdEl = document.getElementById('payment-usd');
+          if (usdEl && amountSats) {
+            const usdValue = (amountSats / 100000000) * price;
+            usdEl.textContent = `≈ $${usdValue.toFixed(2)} USD`;
+          }
+        }
+      } catch (e) {
+        console.log('BTC price fetch failed:', e);
+        // Fallback: show with old rate
+        const usdEl = document.getElementById('payment-usd');
+        if (usdEl && amountSats) {
+          const usdValue = (amountSats || 0) * 0.00059;
+          usdEl.textContent = `≈ $${usdValue.toFixed(2)} USD (approx)`;
+        }
+      }
+    };
+    fetchBtcPrice();
+  }, [amountSats]);
+
+  // Poll payment status
+  useEffect(() => {
+    if (!orderId) return;
+
+    const checkPaymentStatus = async () => {
+      try {
+        // TODO: Poll backend for payment status when API is ready
+        // const res = await fetch(`${API_URL}/payments/${orderId}`);
+        // const data = await res.json();
+        // if (data.status === 'completed') {
+        //   setPaymentStatus('confirmed');
+        //   setStatusMessage('Zahlung erhalten!');
+        //   onPaid?.();
+        // }
+      } catch (e) {
+        console.log('Payment status check failed:', e);
+      }
+    };
+
+    // Poll every 5 seconds
+    const interval = setInterval(checkPaymentStatus, 5000);
+    return () => clearInterval(interval);
+  }, [orderId]);
 
   const handleCopyInvoice = async () => {
     if (bolt11) {
@@ -109,8 +163,11 @@ export default function PaymentRequestScreen({ orderId, amountSats, bolt11, onBa
               </span>
               <span className="font-headline font-bold text-2xl text-primary-container">SATS</span>
             </div>
-            <div className="font-body text-on-surface-variant font-medium tracking-wide">
-              ≈ ${((amountSats || 0) * 0.00059).toFixed(2)} USD
+            <div
+              className="font-body text-on-surface-variant font-medium tracking-wide"
+              id="payment-usd"
+            >
+              {/* USD rate wird via API geladen */}
             </div>
           </div>
 

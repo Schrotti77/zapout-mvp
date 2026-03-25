@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { QRCodeSVG } from 'qrcode.react';
 import BasketListModal from '../components/BasketListModal';
 
-const API_URL = 'http://localhost:8000';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 // === DESIGN SYSTEM TOKENS (Digital Sovereignty - The Kinetic Vault) ===
 const surface = '#131313';

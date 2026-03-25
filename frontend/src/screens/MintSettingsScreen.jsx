@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import MintCard from '../components/MintCard';
 import AddMintModal from '../components/AddMintModal';
 
-const API_URL = 'http://localhost:8000';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 const getToken = () => localStorage.getItem('zapout_token');
 

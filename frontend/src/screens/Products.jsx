@@ -1,6 +1,14 @@
 import { useState, useEffect } from 'react';
-
-const API_URL = 'http://localhost:8000';
+import {
+  useProducts,
+  useCreateProduct,
+  useUpdateProduct,
+  useDeleteProduct,
+} from '../hooks/useProducts';
+import { api } from '../lib/api.js';
+import { Skeleton } from '../components/ui/Skeleton';
+import { ErrorAlert } from '../components/ui/ErrorBanner';
+import { getErrorMessage } from '../lib/api.js';
 
 const cardStyle = {
   backgroundColor: '#141414',
@@ -77,12 +85,16 @@ const PREDEFINED_CATEGORIES = [
 ];
 
 export default function Products({ onBack, setScreen, setCartOpen }) {
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  // React Query hooks
+  const { data: products = [], isLoading, error, refetch } = useProducts();
+  const createProduct = useCreateProduct();
+  const updateProduct = useUpdateProduct();
+  const deleteProduct = useDeleteProduct();
+
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [customCategory, setCustomCategory] = useState('');
+  const [formError, setFormError] = useState(null);
   const [form, setForm] = useState({
     name: '',
     description: '',
@@ -93,72 +105,31 @@ export default function Products({ onBack, setScreen, setCartOpen }) {
     vat_rate: 19,
   });
 
-  const getToken = () => localStorage.getItem('zapout_token');
-
-  useEffect(() => {
-    fetchProducts();
-  }, []);
-
-  const fetchProducts = async () => {
-    try {
-      const token = getToken();
-      if (!token) return;
-      const res = await fetch(`${API_URL}/products`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setProducts(Array.isArray(data) ? data : []);
-      }
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleSubmit = async e => {
     e.preventDefault();
-    const token = getToken();
-    if (!token) {
-      setError('Bitte zuerst einloggen!');
-      return;
-    }
+    setFormError(null);
     const priceCents = Math.round(parseFloat(form.price_cents) * 100);
-
     const payload = { ...form, price_cents: priceCents };
 
     try {
-      const url = editingId ? `${API_URL}/products/${editingId}` : `${API_URL}/products`;
-      const method = editingId ? 'PUT' : 'POST';
-
-      const res = await fetch(url, {
-        method,
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (res.ok) {
-        setShowForm(false);
-        setEditingId(null);
-        setForm({
-          name: '',
-          description: '',
-          price_cents: '',
-          category: 'Allgemein',
-          image_url: '',
-          active: true,
-          vat_rate: 19,
-        });
-        fetchProducts();
+      if (editingId) {
+        await updateProduct.mutateAsync({ id: editingId, ...payload });
       } else {
-        setError('Fehler beim Speichern');
+        await createProduct.mutateAsync(payload);
       }
+      setShowForm(false);
+      setEditingId(null);
+      setForm({
+        name: '',
+        description: '',
+        price_cents: '',
+        category: 'Allgemein',
+        image_url: '',
+        active: true,
+        vat_rate: 19,
+      });
     } catch (err) {
-      setError(err.message);
+      setFormError(err);
     }
   };
 
@@ -178,15 +149,10 @@ export default function Products({ onBack, setScreen, setCartOpen }) {
 
   const handleDelete = async id => {
     if (!confirm('Produkt löschen?')) return;
-    const token = getToken();
     try {
-      await fetch(`${API_URL}/products/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      fetchProducts();
+      await deleteProduct.mutateAsync(id);
     } catch (err) {
-      setError(err.message);
+      setFormError(err);
     }
   };
 
@@ -397,21 +363,23 @@ export default function Products({ onBack, setScreen, setCartOpen }) {
             </div>
           </div>
 
-          {error && (
-            <div
-              style={{
-                padding: '12px',
-                backgroundColor: '#7f1d1d',
-                borderRadius: '12px',
-                marginBottom: '16px',
-              }}
-            >
-              <p style={{ color: '#fca5a5', fontSize: '14px' }}>{error}</p>
-            </div>
+          {formError && (
+            <ErrorAlert error={formError} message={getErrorMessage(formError)} className="mb-4" />
           )}
 
-          <button type="submit" style={buttonStyle}>
-            {editingId ? '💾 Speichern' : '➕ Erstellen'}
+          <button
+            type="submit"
+            style={{
+              ...buttonStyle,
+              opacity: createProduct.isPending || updateProduct.isPending ? 0.7 : 1,
+            }}
+            disabled={createProduct.isPending || updateProduct.isPending}
+          >
+            {createProduct.isPending || updateProduct.isPending
+              ? '⏳ Speichert...'
+              : editingId
+                ? '💾 Speichern'
+                : '➕ Erstellen'}
           </button>
 
           <button type="button" onClick={resetForm} style={buttonSecondaryStyle}>
@@ -442,11 +410,24 @@ export default function Products({ onBack, setScreen, setCartOpen }) {
         ➕ Neues Produkt
       </button>
 
-      {loading && (
-        <div style={{ textAlign: 'center', padding: '40px', color: '#666666' }}>⏳ Lädt...</div>
+      {isLoading && (
+        <div style={{ marginTop: '20px' }}>
+          <Skeleton variant="card" />
+          <Skeleton variant="card" />
+          <Skeleton variant="card" />
+        </div>
       )}
 
-      {!loading && products.length === 0 && (
+      {!isLoading && error && (
+        <ErrorAlert
+          error={error}
+          message={getErrorMessage(error)}
+          onRetry={refetch}
+          className="mt-4"
+        />
+      )}
+
+      {!isLoading && !error && products.length === 0 && (
         <div style={{ ...cardStyle, textAlign: 'center', padding: '40px' }}>
           <p style={{ fontSize: '48px', marginBottom: '16px' }}>🛍️</p>
           <p style={{ color: '#666666', fontSize: '16px' }}>Noch keine Produkte</p>
@@ -534,9 +515,15 @@ export default function Products({ onBack, setScreen, setCartOpen }) {
                 </button>
                 <button
                   onClick={() => handleDelete(product.id)}
-                  style={{ ...buttonSmallStyle, backgroundColor: '#7f1d1d', color: '#fca5a5' }}
+                  disabled={deleteProduct.isPending}
+                  style={{
+                    ...buttonSmallStyle,
+                    backgroundColor: '#7f1d1d',
+                    color: '#fca5a5',
+                    opacity: deleteProduct.isPending ? 0.7 : 1,
+                  }}
                 >
-                  🗑️
+                  {deleteProduct.isPending ? '⏳' : '🗑️'}
                 </button>
               </div>
             </div>
@@ -544,18 +531,7 @@ export default function Products({ onBack, setScreen, setCartOpen }) {
         ))}
       </div>
 
-      {error && !showForm && (
-        <div
-          style={{
-            padding: '12px',
-            backgroundColor: '#7f1d1d',
-            borderRadius: '12px',
-            marginTop: '16px',
-          }}
-        >
-          <p style={{ color: '#fca5a5', fontSize: '14px' }}>{error}</p>
-        </div>
-      )}
+      {/* Global error - handled by isLoading check above */}
     </div>
   );
 }

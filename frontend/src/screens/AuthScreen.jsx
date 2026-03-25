@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import CartDrawer from '../components/CartDrawer';
 import { useTranslation } from 'react-i18next';
 
-const API_URL = 'http://localhost:8000';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 const inputStyle = {
   width: '100%',

@@ -1,29 +1,66 @@
 """
 ZapOut Backend - MVP
 FastAPI based backend for ZapOut payments
+Phase 1: Structured Logging, Typed Errors, Centralized Config
 """
 
 import asyncio
 import hashlib
 import json
+import logging
 import os
 import secrets
 import sqlite3
 import subprocess
 import sys
+import uuid
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Set
 
 import bcrypt
+
+# Phase 1: Import new config, errors, logging modules
 from app import auth_passkey  # Passkey auth module
+from app.config import settings
+from app.errors import (
+    AppError,
+    AuthenticationError,
+    ConflictError,
+    ExternalServiceError,
+    NotFoundError,
+    RateLimitError,
+    ValidationError,
+)
+from app.logging_config import (
+    RequestContextLogger,
+    get_request_id,
+    request_id_ctx,
+    set_request_id,
+    setup_logging,
+)
 
 # Import routers
 from app.routers import mints, transactions
 from app.routers.mints import router as mints_router
-from fastapi import Depends, FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi import (
+    Depends,
+    FastAPI,
+    Header,
+    HTTPException,
+    Request,
+    Response,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, field_validator
+
+# Setup structured logging
+setup_logging(debug=settings.debug)
+logger = logging.getLogger(__name__)
+
+logger.info("Starting ZapOut API", extra={"version": settings.app_version})
 
 
 # LND Connection via SSH to Helmut
@@ -219,53 +256,129 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
-app = FastAPI(title="ZapOut API", version="0.1.0")
+# ============================================================================
+# App Configuration (Phase 1: Centralized via config.py)
+# ============================================================================
+app = FastAPI(title=settings.app_name, version=settings.app_version)
 
 # Register routers
 app.include_router(transactions.router)
 app.include_router(auth_passkey.router)  # Passkey authentication
 app.include_router(mints_router)  # Mint Management
 
-# CORS - Restricted to known origins only
-ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(
-    ","
-)
-
+# CORS - Using centralized config
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
+    allow_origins=settings.allowed_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["Authorization", "Content-Type"],
 )
 
-# Token configuration
-TOKEN_EXPIRY_HOURS = int(os.getenv("TOKEN_EXPIRY_HOURS", "24"))
 
-# Rate limiting (simple in-memory)
+# ============================================================================
+# Middleware: Request ID + Logging
+# ============================================================================
+@app.middleware("http")
+async def add_request_id(request: Request, call_next):
+    """Add unique request ID to each request for tracing"""
+    request_id = str(uuid.uuid4())[:8]
+    set_request_id(request_id)
+
+    logger.info(
+        f"Incoming request: {request.method} {request.url.path}",
+        extra={
+            "extra_fields": {
+                "request_id": request_id,
+                "method": request.method,
+                "path": str(request.url.path),
+                "client_ip": request.client.host if request.client else "unknown",
+            }
+        },
+    )
+
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = request_id
+
+    logger.info(
+        f"Response: {response.status_code}",
+        extra={
+            "extra_fields": {
+                "request_id": request_id,
+                "status_code": response.status_code,
+            }
+        },
+    )
+
+    return response
+
+
+# ============================================================================
+# Global Exception Handler (Phase 1: Typed Error Hierarchy)
+# ============================================================================
+@app.exception_handler(AppError)
+async def app_error_handler(request: Request, error: AppError):
+    """Handle typed AppError exceptions"""
+    logger.warning(
+        f"AppError: {error.code} - {error.message}",
+        extra={"extra_fields": {"error_code": error.code, "details": error.details}},
+    )
+    return Response(
+        content=json.dumps(error.to_dict()),
+        status_code=error.status_code,
+        media_type="application/json",
+    )
+
+
+@app.exception_handler(Exception)
+async def generic_error_handler(request: Request, error: Exception):
+    """Handle unexpected exceptions - log and return generic 500"""
+    logger.error(
+        f"Unexpected error: {str(error)}",
+        extra={"extra_fields": {"error_type": type(error).__name__}},
+        exc_info=True,
+    )
+    return Response(
+        content=json.dumps(
+            {
+                "error": {
+                    "code": "INTERNAL_ERROR",
+                    "message": "An unexpected error occurred",
+                    "status": 500,
+                }
+            }
+        ),
+        status_code=500,
+        media_type="application/json",
+    )
+
+
+# ============================================================================
+# Rate Limiting (using centralized config)
+# ============================================================================
 from collections import defaultdict
 from time import time
 
-login_attempts = defaultdict(list)
-RATE_LIMIT_WINDOW = 300  # 5 minutes
-MAX_LOGIN_ATTEMPTS = 5
+login_attempts: Dict[str, List[float]] = defaultdict(list)
 
 
 def check_rate_limit(ip: str) -> bool:
     """Check if IP has exceeded rate limit"""
     now = time()
     # Clean old attempts
-    login_attempts[ip] = [t for t in login_attempts[ip] if now - t < RATE_LIMIT_WINDOW]
+    login_attempts[ip] = [t for t in login_attempts[ip] if now - t < settings.rate_limit_window]
 
-    if len(login_attempts[ip]) >= MAX_LOGIN_ATTEMPTS:
+    if len(login_attempts[ip]) >= settings.max_login_attempts:
         return False
 
     login_attempts[ip].append(now)
     return True
 
 
-# Database
-DB_PATH = "zapout.db"
+# ============================================================================
+# Database (using centralized config)
+# ============================================================================
+DB_PATH = settings.db_path
 
 
 def calculate_vat(gross_cents, vat_rate):
@@ -449,7 +562,7 @@ def verify_password(password: str, hash: str) -> bool:
 def create_token(user_id: int) -> str:
     """Create authentication token with expiration"""
     token = secrets.token_urlsafe(32)
-    expires_at = datetime.now(timezone.utc) + timedelta(hours=TOKEN_EXPIRY_HOURS)
+    expires_at = datetime.now(timezone.utc) + timedelta(hours=settings.token_expiry_hours)
 
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -465,7 +578,7 @@ def create_token(user_id: int) -> str:
 def verify_token(authorization: str = Header(None)) -> int:
     """Verify token and return user_id"""
     if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing token")
+        raise AuthenticationError("Missing token")
 
     token = authorization.replace("Bearer ", "")
 
@@ -476,7 +589,7 @@ def verify_token(authorization: str = Header(None)) -> int:
     conn.close()
 
     if not row:
-        raise HTTPException(status_code=401, detail="Invalid token")
+        raise AuthenticationError("Invalid token")
 
     user_id, expires_at = row
 
@@ -484,7 +597,7 @@ def verify_token(authorization: str = Header(None)) -> int:
     if expires_at:
         exp = datetime.fromisoformat(expires_at)
         if datetime.now(timezone.utc) > exp:
-            raise HTTPException(status_code=401, detail="Token expired")
+            raise AuthenticationError("Token expired")
 
     return user_id
 
@@ -497,8 +610,41 @@ def root():
 
 @app.get("/health")
 def health():
-    """Health check endpoint"""
-    return {"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()}
+    """Liveness check - is the app running?"""
+    return {"status": "ok", "timestamp": datetime.now(timezone.utc).isoformat()}
+
+
+@app.get("/ready")
+def ready():
+    """
+    Readiness check - are all dependencies available?
+    Used by load balancers and orchestrators (Kubernetes, etc.)
+    """
+    checks = {
+        "database": check_database(),
+    }
+
+    all_ok = all(c["status"] == "ok" for c in checks.values())
+
+    return {
+        "status": "ready" if all_ok else "not_ready",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "checks": checks,
+    }
+
+
+def check_database() -> dict:
+    """Check database connectivity"""
+    try:
+        conn = sqlite3.connect(DB_PATH, timeout=5)
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1")
+        cursor.fetchone()
+        conn.close()
+        return {"status": "ok", "message": "connected"}
+    except Exception as e:
+        logger.error(f"Database check failed: {e}")
+        return {"status": "error", "message": str(e)}
 
 
 @app.get("/lightning/status")
@@ -517,7 +663,7 @@ def register(user: UserCreate):
     c.execute("SELECT id FROM users WHERE email = ?", (user.email,))
     if c.fetchone():
         conn.close()
-        raise HTTPException(status_code=400, detail="Email already registered")
+        raise ConflictError("Email already registered", resource="user")
 
     # Create user
     password_hash = hash_password(user.password)
@@ -541,7 +687,7 @@ def login(credentials: UserLogin, request: Request = None):
     # Rate limiting
     client_ip = request.client.host if request else "unknown"
     if not check_rate_limit(client_ip):
-        raise HTTPException(status_code=429, detail="Too many login attempts. Try again later.")
+        raise RateLimitError("Too many login attempts. Try again later.", retry_after=60)
 
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -551,13 +697,13 @@ def login(credentials: UserLogin, request: Request = None):
 
     if not row:
         conn.close()
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        raise AuthenticationError("Invalid credentials")
 
     user_id, password_hash = row
 
     if not verify_password(credentials.password, password_hash):
         conn.close()
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        raise AuthenticationError("Invalid credentials")
 
     token = create_token(user_id)
     conn.close()
@@ -662,7 +808,7 @@ def get_payment(payment_id: int, user_id: int = Depends(verify_token)):
             "websocket_url": f"ws://localhost:8000/ws/payments/{payment_id}",
         }
 
-    raise HTTPException(404, "Payment not found")
+    raise NotFoundError("Payment", "not_found")
 
 
 @app.post("/payments", response_model=PaymentResponse)
@@ -673,7 +819,10 @@ def create_payment(payment: dict, user_id: int = Depends(verify_token)):
     method = payment.get("method", "lightning")
 
     if not amount_cents or amount_cents <= 0:
-        raise HTTPException(400, "Valid amount_cents required")
+        raise ValidationError(
+            "Valid amount_cents required",
+            field_errors=[{"field": "amount_cents", "message": "Must be greater than 0"}],
+        )
 
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -895,7 +1044,9 @@ def add_to_cart(item: dict, user_id: int = Depends(verify_token)):
     amount_cents = item.get("amount_cents", 0)
 
     if not product_id:
-        raise HTTPException(400, "product_id required")
+        raise ValidationError(
+            "product_id required", field_errors=[{"field": "product_id", "message": "Required"}]
+        )
 
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -964,7 +1115,9 @@ def checkout_cart(request: dict = None, user_id: int = Depends(verify_token)):
 
     if not rows:
         conn.close()
-        raise HTTPException(400, "Cart is empty")
+        raise ValidationError(
+            "Cart is empty", field_errors=[{"field": "cart", "message": "No items in cart"}]
+        )
 
     # Build items with vat_rate
     items = [
@@ -1065,7 +1218,13 @@ def create_product(product: dict, user_id: int = Depends(verify_token)):
     vat_rate = product.get("vat_rate", 19)  # Default 19% MwSt
 
     if not name or not price_cents:
-        raise HTTPException(400, "name and price_cents required")
+        raise ValidationError(
+            "name and price_cents required",
+            field_errors=[
+                {"field": "name", "message": "Required" if not name else None},
+                {"field": "price_cents", "message": "Required" if not price_cents else None},
+            ],
+        )
 
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -1103,7 +1262,7 @@ def update_product(product_id: int, product: dict, user_id: int = Depends(verify
     c.execute("SELECT id FROM products WHERE id=? AND user_id=?", (product_id, user_id))
     if not c.fetchone():
         conn.close()
-        raise HTTPException(404, "Product not found")
+        raise NotFoundError("Product", str(product_id))
 
     # Build update query dynamically
     updates = []
@@ -1215,7 +1374,7 @@ def get_basket(basket_id: int, user_id: int = Depends(verify_token)):
     conn.close()
 
     if not r:
-        raise HTTPException(404, "Basket not found")
+        raise NotFoundError("Basket", str(basket_id))
 
     return {
         "id": r[0],
@@ -1270,7 +1429,7 @@ def load_basket(basket_id: int, user_id: int = Depends(verify_token)):
     conn.close()
 
     if not r:
-        raise HTTPException(404, "Basket not found")
+        raise NotFoundError("Basket", str(basket_id))
 
     items = json.loads(r[0]) if r[0] else []
     total_cents = r[1]
@@ -1363,7 +1522,7 @@ def get_me(user_id: int = Depends(verify_token)):
     conn.close()
 
     if not row:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise NotFoundError("User", str(user_id))
 
     return {"id": row[0], "email": row[1], "iban": row[2], "phone": row[3], "created_at": row[4]}
 
@@ -1390,7 +1549,7 @@ import secrets
 # Cashu Integration
 import requests
 
-DEFAULT_CASHU_MINT = os.getenv("CASHU_MINT_URL", "https://testnut.cashu.space")
+DEFAULT_CASHU_MINT = settings.default_cashu_mint
 
 
 @app.get("/cashu/mints")
@@ -1641,9 +1800,14 @@ def melt_cashu_tokens(request: dict, user_id: int = Depends(verify_token)):
     token_str = request.get("token", "")
 
     if not invoice:
-        raise HTTPException(400, "Lightning invoice (bolt11) required")
+        raise ValidationError(
+            "Lightning invoice (bolt11) required",
+            field_errors=[{"field": "invoice", "message": "Required"}],
+        )
     if not token_str:
-        raise HTTPException(400, "Cashu token required")
+        raise ValidationError(
+            "Cashu token required", field_errors=[{"field": "token", "message": "Required"}]
+        )
 
     mint = request.get("mint_url", DEFAULT_CASHU_MINT)
 
@@ -1685,7 +1849,9 @@ def create_merchant_payment_request(request: dict, user_id: int = Depends(verify
     method = request.get("method", "lightning")  # Default zu Lightning
 
     if not amount_cents:
-        raise HTTPException(400, "amount_cents required")
+        raise ValidationError(
+            "amount_cents required", field_errors=[{"field": "amount_cents", "message": "Required"}]
+        )
 
     # EUR zu Sats Konvertierung (ca. 1 cent = 10 sats bei ~60k BTC)
     amount_sats = amount_cents * 10
@@ -1709,7 +1875,7 @@ def create_merchant_payment_request(request: dict, user_id: int = Depends(verify
         if "error" in lnd_result:
             # LND failed, return error
             conn.close()
-            raise HTTPException(500, f"Lightning invoice failed: {lnd_result['error']}")
+            raise ExternalServiceError("LND", lnd_result["error"])
 
         bolt11 = lnd_result.get("payment_request", "")
         payment_hash = lnd_result.get("r_hash", "")
@@ -1749,7 +1915,7 @@ def get_merchant_payment_status(quote_id: str, user_id: int = Depends(verify_tok
     conn.close()
 
     if not row:
-        raise HTTPException(404, "Payment not found")
+        raise NotFoundError("Payment", str(order_id))
 
     return {
         "quote_id": quote_id,

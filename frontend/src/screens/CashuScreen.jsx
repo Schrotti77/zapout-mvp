@@ -4,8 +4,11 @@ import { proofStorage, txHistory } from '../services/cashu';
 import { QRCodeSVG } from 'qrcode.react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { useTranslation } from 'react-i18next';
+import { Skeleton } from '../components/ui/Skeleton';
+import { ErrorAlert } from '../components/ui/ErrorBanner';
+import { api, getErrorMessage } from '../lib/api.js';
 
-const API_URL = 'http://localhost:8000';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 const quickAmountStyle = {
   backgroundColor: '#1f1f1f',
@@ -36,8 +39,28 @@ function CashuScreen({
   const [showInvoiceQR, setShowInvoiceQR] = useState(false);
   const [showTokenQR, setShowTokenQR] = useState(false);
   const [scanningQR, setScanningQR] = useState(false);
+  const [isLoadingBalance, setIsLoadingBalance] = useState(false);
+  const [balanceError, setBalanceError] = useState(null);
   const scannerRef = useRef(null);
   const html5QrCodeRef = useRef(null);
+
+  // Load Cashu balance with error handling
+  const loadCashuBalance = async () => {
+    setIsLoadingBalance(true);
+    setBalanceError(null);
+    try {
+      const result = await api.getCashuBalance();
+      setCashuBal(result.balance || 0);
+    } catch (e) {
+      setBalanceError(e);
+    } finally {
+      setIsLoadingBalance(false);
+    }
+  };
+
+  useEffect(() => {
+    if (token) loadCashuBalance();
+  }, [token]);
 
   const mints = [
     { name: 'Testnut', url: 'https://testnut.cashu.space', fees: '0.5%' },
@@ -46,8 +69,13 @@ function CashuScreen({
   ];
 
   // Cashu: Create mint quote
+  const [mintQuoteError, setMintQuoteError] = useState(null);
+  const [isCreatingQuote, setIsCreatingQuote] = useState(false);
+
   const createCashuQuote = async sats => {
     try {
+      setMintQuoteError(null);
+      setIsCreatingQuote(true);
       setShowInvoiceQR(false);
       const res = await fetch(
         API_URL +
@@ -62,7 +90,9 @@ function CashuScreen({
       setCashuQuote(result);
     } catch (e) {
       console.error(e);
-      alert('Error: ' + e.message);
+      setMintQuoteError(e);
+    } finally {
+      setIsCreatingQuote(false);
     }
   };
 
@@ -198,9 +228,19 @@ function CashuScreen({
         >
           {t('cashu.balance')}
         </p>
-        <p style={{ color: '#f7931a', fontSize: '36px', fontWeight: 'bold', marginTop: '4px' }}>
-          {cashuBal} {t('dashboard.sats')}
-        </p>
+        {isLoadingBalance ? (
+          <Skeleton variant="text" width="150px" height="48px" />
+        ) : balanceError ? (
+          <ErrorAlert
+            error={balanceError}
+            message={getErrorMessage(balanceError)}
+            onRetry={loadCashuBalance}
+          />
+        ) : (
+          <p style={{ color: '#f7931a', fontSize: '36px', fontWeight: 'bold', marginTop: '4px' }}>
+            {cashuBal} {t('dashboard.sats')}
+          </p>
+        )}
       </div>
 
       {/* Multi-Mint Selector */}
@@ -246,11 +286,28 @@ function CashuScreen({
         }}
       >
         {[100, 500, 1000].map(amt => (
-          <button key={amt} style={quickAmountStyle} onClick={() => createCashuQuote(amt)}>
-            {amt} ⚡
+          <button
+            key={amt}
+            style={{
+              ...quickAmountStyle,
+              opacity: isCreatingQuote ? 0.5 : 1,
+            }}
+            onClick={() => createCashuQuote(amt)}
+            disabled={isCreatingQuote}
+          >
+            {isCreatingQuote ? '⏳' : `${amt} ⚡`}
           </button>
         ))}
       </div>
+
+      {/* Mint Quote Error */}
+      {mintQuoteError && (
+        <ErrorAlert
+          error={mintQuoteError}
+          message={getErrorMessage(mintQuoteError)}
+          className="mb-4"
+        />
+      )}
 
       {/* Custom Amount Input */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
