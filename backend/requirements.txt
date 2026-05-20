@@ -9,6 +9,6 @@ httpx==0.26.0
 python-dotenv==1.0.0
 
 # Linting & Formatting
-black==24.1.1
+black==26.5.1
 isort==5.13.2
 flake8==7.0.0
