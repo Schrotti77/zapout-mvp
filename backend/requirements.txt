@@ -6,7 +6,7 @@ python-multipart==0.0.6
 pydantic==2.5.3
 pydantic-settings==2.1.0
 httpx==0.26.0
-python-dotenv==1.0.0
+python-dotenv==1.2.2
 
 # Linting & Formatting
 black==24.1.1
