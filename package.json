@@ -3,6 +3,6 @@
     "@playwright/test": "^1.58.2"
   },
   "dependencies": {
-    "@cashu/cashu-ts": "^3.6.0"
+    "@cashu/cashu-ts": "^4.7.2"
   }
 }
