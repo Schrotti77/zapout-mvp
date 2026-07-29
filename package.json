@@ -1,6 +1,6 @@
 {
   "devDependencies": {
-    "@playwright/test": "^1.58.2"
+    "@playwright/test": "^1.62.0"
   },
   "dependencies": {
     "@cashu/cashu-ts": "^3.6.0"
